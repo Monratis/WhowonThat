@@ -1,0 +1,7 @@
+## Interface: 16001
+## Title: Who Won That
+## Notes: Who rolled what and who won - one readable block per loot roll in a chat window of your choice (class colors, crown for the winner). Settings: /wwt
+## Author: local
+## Version: 4.0
+## SavedVariables: WhoWonThatDB, RollsOnlyDB
+WhoWonThat.lua

@@ -1,0 +1,20 @@
+# Temporary & Scratch files
+profil*.txt
+*.png
+*.bak
+*.orig
+
+# World of Warcraft
+WTF/
+*.lua.bak
+
+# OS generated files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE & Editor files
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
