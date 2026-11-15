@@ -1,74 +1,29 @@
--- Who Won That - czesc startowa - laduje sie PIERWSZY (patrz WhoWonThat.toc).
--- 1) zapisuje slad, ze dodatek w ogole sie uruchomil (WhoWonThatDB.boot),
--- 2) przechwytuje KAZDY blad Lua (takze z innych dodatkow i z ladowania glownego pliku)
---    do WhoWonThatDB.errors, zeby mozna je bylo odczytac z pliku WTF po /reload.
--- Wylaczysz: /wwt debug off
-WhoWonThatDB = WhoWonThatDB or {}
-WhoWonThatDB.boot = "v4.0 " .. (date and date("%H:%M:%S") or "")
-
-if seterrorhandler and geterrorhandler then
-    local original = geterrorhandler()
-    seterrorhandler(function(msg)
-        local db = WhoWonThatDB
-        if db and db.debug == true then
-            local okStack, stack = pcall(debugstack, 3, 12, 0)
-            local list = db.errors
-            if not list then
-                list = {}
-                db.errors = list
-            end
-            local text = tostring(msg)
-            local last = list[#list]
-            if last and last.msg == text then
-                last.count = (last.count or 1) + 1
-            else
-                list[#list + 1] = {
-                    time = date and date("%H:%M:%S") or "",
-                    msg = text,
-                    stack = okStack and tostring(stack) or "",
-                    count = 1,
-                }
-                if #list > 30 then
-                    table.remove(list, 1)
-                end
-            end
-        end
-        if original then
-            return original(msg)
-        end
-    end)
-end
-
--- ===== koniec czesci diagnostycznej =====
-
 -- Who Won That
--- W wybranym oknie czatu pokazuje rolle na przedmioty i wyniki. Domyslnie jako JEDNA czytelna
--- linia na przedmiot, po zakonczeniu rolla:
---   [Przedmiot]  >  Brakk wygral (Need 74)  |  Seluna Greed 55, Morvanna Pass
--- Tryb "raw" zostawia oryginalne linie Blizzarda (z filtrem typow). Inne okna czatu bez zmian.
--- Ustawienia: /wwt   (skrot: /wwt)
+-- Shows loot rolls and results in a chat window of your choice: one readable block per item once
+-- the roll is finished (winner with a crown, then everyone else's roll).
+-- "raw" format keeps Blizzard's original lines (filtered by roll type). Other chat windows are untouched.
+-- Settings: Esc > Options > AddOns > Who Won That, or /wwt
 
 local ADDON = "WhoWonThat"
 
 local DEFAULTS = {
-    frame = 4,          -- numer okna czatu, w ktorym maja byc rolle i wyniki
-    format = "summary", -- "summary" = jedna linia na przedmiot, "raw" = oryginalne linie Blizzarda
-    rolls = true,       -- glowny przelacznik: pokazuj rolle innych graczy
-    need = true,        -- pokazuj rolle Need
-    greed = true,       -- pokazuj rolle Greed
-    de = true,          -- (tylko tryb raw) rolle Disenchant, jesli gra je ma
-    transmog = true,    -- pokazuj rolle Transmog
-    pass = true,        -- pokazuj "spasowal"
-    wins = true,        -- pokazuj, kto wygral / ze wszyscy spasowali
-    hideOthers = true,  -- ukryj w tym oknie reszte lupow (podniesione przedmioty itp.)
-    classColors = true, -- koloruj nicki wg klasy (kolory z EllesmereUI, jesli jest zainstalowany)
-    debug = false,      -- zapisuj bledy Lua do pliku ustawien (WhoWonThatDB.errors) - tylko do diagnozy
+    frame = 1,          -- chat window number that receives rolls and results
+    format = "summary", -- "summary" = readable block per item, "raw" = Blizzard's original lines
+    rolls = true,       -- master switch: show other players' rolls
+    need = true,        -- show Need rolls
+    greed = true,       -- show Greed rolls
+    de = true,          -- (raw mode only) Disenchant rolls, if the game has them
+    transmog = true,    -- show Transmog rolls
+    pass = true,        -- show passes
+    wins = true,        -- show who won / that everyone passed
+    hideOthers = true,  -- hide other loot messages in that window (picked up items etc.)
+    classColors = true, -- color names by class (EllesmereUI colors if installed)
 }
 
 local TYPE_LABEL = { need = "Need", greed = "Greed", de = "Disenchant", transmog = "Transmog", pass = "Pass" }
 local PRIORITY = { win = 1, de = 2, transmog = 2, greed = 3, need = 4, pass = 5, other = 6 }
--- Forever (silnik Midnight) ma historie lootu z gotowymi danymi o rollach (C_LootHistory) - to glowne zrodlo.
--- Parsowanie tekstow czatu zostaje tylko do ukrywania surowych linii i jako rezerwa.
+-- Forever (Midnight engine) has a loot history with structured roll data (C_LootHistory) - the main data source.
+-- Chat text parsing is only used to hide the raw lines and as a fallback.
 local HAS_HISTORY = (C_LootHistory ~= nil and C_LootHistory.GetSortedInfoForDrop ~= nil)
 local STALE_SECONDS = 180
 
@@ -76,9 +31,9 @@ local db
 local entries = {}  -- {pattern, kinds, kind, wonType, self, prio}
 local items = {}    -- [itemLink] = { time = t, players = { [name] = { type, roll } } }
 
--- Wypisuje tekst w ramce czatu tak, jak robi to sam Blizzard: AddMessage(tekst, r, g, b, id).
--- Pelny zestaw argumentow jest wazny - dodatki podpiete pod AddMessage (np. EllesmereUIChat)
--- czytaja m.in. 5. argument (chatTypeID) i bez niego wywalaja "bad argument #5".
+-- Prints to a chat frame the way Blizzard does: AddMessage(text, r, g, b, id).
+-- The full argument list matters - addons hooking AddMessage (e.g. EllesmereUIChat)
+-- read the 5th argument (chatTypeID) and raise "bad argument #5" without it.
 local function Emit(frame, text, chatType)
     local info = ChatTypeInfo and (ChatTypeInfo[chatType] or ChatTypeInfo.SYSTEM)
     if info then
@@ -92,8 +47,8 @@ local function Print(msg)
     Emit(DEFAULT_CHAT_FRAME, "|cff58c6faWho Won That:|r " .. msg, "SYSTEM")
 end
 
--- Zamienia tekst formatu Blizzarda (np. "%s won: %s") na wzorzec Lua z grupami przechwytujacymi,
--- niezalezny od jezyka. Zwraca wzorzec oraz liste typow przechwytywanych pol ("s" albo "d").
+-- Turns a Blizzard format string (e.g. "%s won: %s") into a language-independent Lua pattern
+-- with captures. Returns the pattern and the list of captured field types ("s" or "d").
 local function Compile(fmt)
     local kinds = {}
     local p = fmt:gsub("%%%%", "\3")
@@ -108,7 +63,7 @@ local function Compile(fmt)
     return "^" .. p .. "$", kinds
 end
 
--- Okresla na podstawie nazwy globalnej (np. LOOT_ROLL_ROLLED_NEED), czym jest dana wiadomosc.
+-- Classifies a message by the name of its global string (e.g. LOOT_ROLL_ROLLED_NEED).
 local function ClassifyName(name)
     if name:find("WON") or name:find("ALL_PASSED") then
         return "win"
@@ -143,7 +98,7 @@ local function BuildEntries()
     for name, text in pairs(_G) do
         if type(name) == "string" and type(text) == "string" and name:find("^LOOT_ROLL_") then
             local pattern, kinds = Compile(text)
-            -- pomin wzorce, ktore pasowalyby do kazdej wiadomosci
+            -- skip patterns that would match every message
             if pattern ~= "^(.+)$" and pattern ~= "^$" then
                 local kind = ClassifyName(name)
                 local literal = #(text:gsub("%%%d*%$?[sd]", ""))
@@ -161,9 +116,9 @@ local function BuildEntries()
             end
         end
     end
-    -- wygrane przed rollami ("wszyscy spasowali" pasuje tez do wzorca "X spasowal"),
-    -- a w obrebie grupy najpierw wzorce o najwiekszej ilosci stalego tekstu, bo ogolny
-    -- "%s won: %s" pasowalby tez do "You won: %s" i "%s won: %s (Need - 74)"
+    -- wins before rolls ("everyone passed" also matches the "X passed" pattern),
+    -- and within a group the patterns with the most literal text first, because the generic
+    -- "%s won: %s" would also match "You won: %s" and "%s won: %s (Need - 74)"
     table.sort(entries, function(a, b)
         if a.prio ~= b.prio then return a.prio < b.prio end
         if a.literal ~= b.literal then return a.literal > b.literal end
@@ -171,8 +126,8 @@ local function BuildEntries()
     end)
 end
 
--- Zwraca pelna nazwe gracza ("Nick-Serwer", jesli klient ja podaje) oraz krotki nick.
--- Komunikaty Blizzarda zawieraja link |Hplayer:Nick-Serwer:...|h[Nick]|h, z niego bierzemy pelna nazwe.
+-- Returns the full player name ("Name-Realm", if the client provides it) and the short name.
+-- Blizzard messages contain a link |Hplayer:Name-Realm:...|h[Name]|h; the full name comes from it.
 local function PlayerInfo(raw)
     if not raw then return nil end
     local full = raw:match("|Hplayer:([^:|]+)")
@@ -193,7 +148,7 @@ local function SelfInfo()
     return name, name
 end
 
--- Zwraca tabele {kind, item, player, roll, wonType, allPassed} albo nil, jesli to nie roll.
+-- Returns a table {kind, item, player, roll, wonType, allPassed}, or nil if the message is not a roll.
 local function Parse(msg)
     for i = 1, #entries do
         local e = entries[i]
@@ -225,7 +180,7 @@ local function TargetFrame()
     return db and _G["ChatFrame" .. db.frame]
 end
 
--- Zwrocenie true = ukryj wiadomosc w tym oknie czatu.
+-- Returning true = hide the message in this chat window.
 local function Filter(self, event, msg, ...)
     if not db or self ~= TargetFrame() then
         return false
@@ -236,7 +191,7 @@ local function Filter(self, event, msg, ...)
     local p = Parse(msg)
     if p then
         if db.format == "summary" then
-            return true -- zastapimy jedna linia podsumowania
+            return true -- replaced by the summary block
         end
         if p.kind == "win" then
             return not db.wins
@@ -252,9 +207,9 @@ local function Filter(self, event, msg, ...)
     return db.hideOthers
 end
 
--- Gracz jako klikalny link z PELNA nazwa (Nick-Serwer). Dzieki temu dodatki do czatu
--- (kolorowanie nickow wg klasy itp.) rozpoznaja gracza tak samo jak w zwyklej wiadomosci.
--- Kolor klasy: najpierw paleta EllesmereUI (wlasne kolory uzytkownika), potem standardowy Blizzarda.
+-- Player as a clickable link with the FULL name (Name-Realm), so chat addons
+-- (name coloring etc.) recognize the player like in a regular message.
+-- Class color: EllesmereUI palette first (user's custom colors), then Blizzard's default.
 local function ClassColor(classFile)
     if not classFile then
         return nil
@@ -269,7 +224,7 @@ local function ClassColor(classFile)
 end
 
 local function PlayerLink(full, short, classFile)
-    -- w tekscie sam nick, a w linku pelna nazwa (Nick-Serwer)
+    -- short name in the text, full name (Name-Realm) in the link
     local link = "|Hplayer:" .. full .. "|h[" .. (short or full) .. "]|h"
     if db.classColors then
         local class = classFile
@@ -287,7 +242,7 @@ local function PlayerLink(full, short, classFile)
     return link
 end
 
--- ===== Glowne zrodlo danych: historia lootu Blizzarda (zdarzenie LOOT_HISTORY_UPDATE_DROP) =====
+-- ===== Main data source: Blizzard loot history (LOOT_HISTORY_UPDATE_DROP event) =====
 local ROLL_STATE = (Enum and Enum.EncounterLootDropRollState)
     or { NeedMainSpec = 0, NeedOffSpec = 1, Transmog = 2, Greed = 3, NoRoll = 4, Pass = 5 }
 local STATE_INFO = {
@@ -296,7 +251,7 @@ local STATE_INFO = {
     [ROLL_STATE.Transmog] = { kind = "transmog", label = "Transmog" },
     [ROLL_STATE.Greed] = { kind = "greed", label = "Greed" },
     [ROLL_STATE.Pass] = { kind = "pass", label = "Pass" },
-    -- NoRoll: gracz jeszcze nie wybral - pomijamy
+    -- NoRoll: the player has not chosen yet - skipped
 }
 local printedDrops = {}
 local printedCount = 0
@@ -305,12 +260,12 @@ local function ShortName(full)
     return (full:match("^([^%-]+)") or full)
 end
 
--- nazwa gracza uzyteczna do wyswietlenia (zwykly tekst, nie "secret")
+-- player name usable for display (plain text, not a "secret" value)
 local function UsableName(v)
     return type(v) == "string" and v ~= "" and not (issecretvalue and issecretvalue(v))
 end
 
--- Ikony z klienta (te same sciezki uzywaja EllesmereUI i ForeverDungeonJournal)
+-- Client icons
 local ICON_CROWN = "|TInterface\\GroupFrame\\UI-Group-LeaderIcon:16:16:0:0|t"
 local KIND_ICON = {
     need = "|TInterface\\Buttons\\UI-GroupLoot-Dice-Up:14:14:0:0|t",
@@ -318,20 +273,20 @@ local KIND_ICON = {
     pass = "|TInterface\\Buttons\\UI-GroupLoot-Pass-Up:14:14:0:0|t",
 }
 
--- np. "[kostka] Need 74"
+-- e.g. "[dice] Need 74"
 local function RollLabel(r, st)
     local icon = KIND_ICON[st.kind]
     return (icon and (icon .. " ") or "")
         .. "|cffaaaaaa" .. st.label .. "|r"
         .. (r.roll and (" |cffffffff" .. r.roll .. "|r") or "")
-        .. (r.isSelf and "  |cffffd100(Ty)|r" or "")
+        .. (r.isSelf and "  |cffffd100(You)|r" or "")
 end
 
--- Wypisuje podsumowanie jednego przedmiotu (dane z C_LootHistory) w kilku liniach:
---   [Przedmiot]
---      [korona] Zwyciezca  WYGRAL  [kostka] Need 74
---          Gracz2  [moneta] Greed 55
---          Gracz3  [kostka] Need OS 31
+-- Prints the summary of one item (data from C_LootHistory) on several lines:
+--   [Item]
+--      [crown] Winner  WON  [dice] Need 74
+--          Player2  [coin] Greed 55
+--          Player3  [dice] Need OS 31
 local function RenderDrop(info)
     local frame = TargetFrame()
     if not frame or type(info) ~= "table" then
@@ -344,7 +299,7 @@ local function RenderDrop(info)
     if info.allPassed then
         if db.wins then
             Emit(frame, item, "LOOT")
-            Emit(frame, "     |cffaaaaaanikt nie chcial (wszyscy spasowali)|r", "LOOT")
+            Emit(frame, "     |cffaaaaaaNobody wanted it (everyone passed)|r", "LOOT")
         end
         return
     end
@@ -354,7 +309,7 @@ local function RenderDrop(info)
     if db.rolls then
         for _, r in ipairs(info.rollInfos or {}) do
             local st = STATE_INFO[r.state]
-            -- zwyciezce wypisujemy osobno, chyba ze wygrane sa wylaczone
+            -- the winner is printed separately, unless winners are turned off
             if st and UsableName(r.playerName) and db[st.kind] and not (r.isWinner and db.wins) then
                 list[#list + 1] = { r = r, st = st }
             end
@@ -375,7 +330,7 @@ local function RenderDrop(info)
     if showWinner then
         local line = "   " .. ICON_CROWN .. " "
             .. PlayerLink(winner.playerName, ShortName(winner.playerName), winner.playerClass)
-            .. "  |cffffd100WYGRAL|r"
+            .. "  |cffffd100WON|r"
         local wst = STATE_INFO[winner.state]
         if wst then
             line = line .. "  " .. RollLabel(winner, wst)
@@ -402,7 +357,7 @@ local function OnDropUpdate(encounterID, lootListKey)
     end
     local info = C_LootHistory.GetSortedInfoForDrop(encounterID, lootListKey)
     if type(info) ~= "table" or not (info.winner or info.allPassed) then
-        return -- rzut jeszcze trwa
+        return -- the roll is still in progress
     end
     if printedCount > 400 then
         wipe(printedDrops)
@@ -413,8 +368,8 @@ local function OnDropUpdate(encounterID, lootListKey)
     RenderDrop(info)
 end
 
--- Po /reload (albo wejsciu do gry w trakcie dungeonu) historia lootu juz istnieje: oznacz rozstrzygniete
--- przedmioty jako wypisane, zeby ich podsumowania nie pojawily sie drugi raz.
+-- After /reload (or logging in mid-dungeon) the loot history already exists: mark finished
+-- items as printed so their summaries do not appear a second time.
 local function MarkExistingDrops()
     if not HAS_HISTORY or not C_LootHistory.GetAllEncounterInfos or not C_LootHistory.GetSortedDropsForEncounter then
         return
@@ -443,8 +398,8 @@ local function MarkExistingDrops()
 end
 
 
--- ===== Rezerwa: gdy gra nie ma historii lootu, rolle sa skladane z tekstow czatu =====
--- Dane trafiaja do tego samego RenderDrop, wiec wyglad jest identyczny.
+-- ===== Fallback: when the game has no loot history, rolls are assembled from chat messages =====
+-- The data goes through the same RenderDrop, so the output looks identical.
 local KIND_TO_STATE = {
     need = ROLL_STATE.NeedMainSpec, greed = ROLL_STATE.Greed, de = ROLL_STATE.Greed,
     transmog = ROLL_STATE.Transmog, pass = ROLL_STATE.Pass,
@@ -517,7 +472,7 @@ local function OnLoot(msg)
         rec = { time = now, players = {} }
         items[p.item] = rec
     end
-    -- klucz = krotki nick (komunikaty raz podaja "Nick", raz "Nick-Serwer"); pelna nazwa trafia do linku
+    -- key = short name (messages give "Name" sometimes and "Name-Realm" other times); the full name goes into the link
     local key = p.short or p.player
     local e = rec.players[key]
     if not e then
@@ -542,7 +497,7 @@ local function EnsureLootGroup()
     if not frame then
         return
     end
-    -- w Forever AddMessageGroup to metoda ramki czatu (ChatFrameMixin); zapamietuje sie sama
+    -- in Forever AddMessageGroup is a chat frame method (ChatFrameMixin); it persists by itself
     if frame.ContainsMessageGroup and frame:ContainsMessageGroup("LOOT") then
         return
     end
@@ -551,7 +506,7 @@ local function EnsureLootGroup()
     elseif addGroup then
         addGroup(frame, "LOOT")
     else
-        Print("nie moge sam dodac grupy Loot - zaznacz Loot w tym oknie recznie (prawy klik na zakladke > Settings)")
+        Print("Could not add the Loot message group automatically - enable Loot for this window manually (right-click the tab > Settings).")
     end
 end
 
@@ -569,33 +524,32 @@ local function OnOff(v)
 end
 
 local function Status()
-    Print(string.format("okno: %d (%s) | format: %s | rolle: %s | wygrane: %s | reszta lupow ukryta: %s",
+    Print(string.format("window: %d (%s) | format: %s | rolls: %s | winners: %s | other loot hidden: %s",
         db.frame, WindowName(db.frame), db.format, OnOff(db.rolls), OnOff(db.wins), OnOff(db.hideOthers)))
-    Print(string.format("typy rolli: Need %s, Greed %s, Transmog %s, Pass %s | kolory klas: %s",
+    Print(string.format("roll types: Need %s, Greed %s, Transmog %s, Pass %s | class colors: %s",
         OnOff(db.need), OnOff(db.greed), OnOff(db.transmog), OnOff(db.pass), OnOff(db.classColors)))
 end
 
 local function Help()
     Status()
-    Print("/wwt config - otworz panel ustawien (Esc > Options > AddOns > Who Won That)")
-    Print("/wwt test - wyslij przykladowy roll do wybranego okna i sprawdz rozpoznawanie")
-    Print("/wwt dump - zapisz teksty LOOT_ROLL_* z gry do pliku (diagnoza, potem /reload)")
-    Print("/wwt list - lista okien czatu z numerami")
-    Print("/wwt frame <numer lub nazwa> - gdzie pokazywac rolle i wygrane")
-    Print("/wwt format summary / raw - jedna linia na przedmiot albo oryginalne linie")
-    Print("/wwt rolls on/off - pokazuj rolle innych graczy")
-    Print("/wwt need/greed/transmog/pass on/off - pojedyncze typy rolli")
-    Print("/wwt only need  (albo greed, transmog, pass) - tylko ten typ rolla")
-    Print("/wwt all - wszystkie typy rolli")
-    Print("/wwt wins on/off - kto wygral / wszyscy spasowali")
-    Print("/wwt others on/off - ukrywanie reszty lupow w tym oknie (takze rzeczy wytworzone, z questow, od mistrza lupow)")
-    Print("/wwt colors on/off - kolory klas przy nickach (z EllesmereUI, jesli jest; link gracza ma zawsze pelna nazwe z serwerem)")
+    Print("/wwt config - open the settings panel (Esc > Options > AddOns > Who Won That)")
+    Print("/wwt test - print a sample roll to the chosen window and check message recognition")
+    Print("/wwt list - list chat windows with their numbers")
+    Print("/wwt frame <number or name> - where to show rolls and winners")
+    Print("/wwt format summary / raw - readable block per item, or Blizzard's original lines")
+    Print("/wwt rolls on/off - show other players' rolls")
+    Print("/wwt need/greed/transmog/pass on/off - single roll types")
+    Print("/wwt only need  (or greed, transmog, pass) - show only that roll type")
+    Print("/wwt all - show all roll types")
+    Print("/wwt wins on/off - who won / everyone passed")
+    Print("/wwt others on/off - hide the rest of the loot messages in that window (crafted, quest, master looter...)")
+    Print("/wwt colors on/off - class colors on names (EllesmereUI colors if installed)")
 end
 
 local function ParseBool(s)
     s = (s or ""):lower()
-    if s == "on" or s == "1" or s == "yes" or s == "tak" then return true end
-    if s == "off" or s == "0" or s == "no" or s == "nie" then return false end
+    if s == "on" or s == "1" or s == "yes" then return true end
+    if s == "off" or s == "0" or s == "no" then return false end
     return nil
 end
 
@@ -618,19 +572,19 @@ local function FindWindow(arg)
     return nil
 end
 
-local settingsCategory -- kategoria w Esc > Options > AddOns
+local settingsCategory -- category in Esc > Options > AddOns
 
 local TYPE_ALIASES = {
     need = "need", greed = "greed", transmog = "transmog", pass = "pass",
 }
 
--- /wwt test: buduje przykladowe komunikaty z PRAWDZIWYCH tekstow gry (LOOT_ROLL_*), sprawdza,
--- czy dodatek je rozpoznaje, i (w trybie "summary") wysyla je przez ten sam kod co prawdziwe rolle.
+-- /wwt test: builds sample messages from the game's REAL strings (LOOT_ROLL_*), checks that
+-- the addon recognizes them and (in "summary" mode) renders them through the same code as real rolls.
 local function RunTest()
-    Print(string.format("TEST: okno %d (%s), format: %s, historia lootu (C_LootHistory): %s",
-        db.frame, WindowName(db.frame), db.format, HAS_HISTORY and "TAK" or "NIE"))
+    Print(string.format("TEST: window %d (%s), format: %s, loot history (C_LootHistory): %s",
+        db.frame, WindowName(db.frame), db.format, HAS_HISTORY and "YES" or "NO"))
 
-    -- 1) czy rozpoznajemy teksty czatu z rolli (potrzebne do ukrywania surowych linii w tym oknie)
+    -- 1) do we recognize the roll chat messages (needed to hide the raw lines in this window)
     local item = "|cffffffff|Hitem:25::::::::::::::|h[Worn Shortsword]|h|r"
     local function pl(n)
         return "|Hplayer:" .. n .. "-Testrealm:1|h[" .. n .. "]|h"
@@ -650,9 +604,9 @@ local function RunTest()
         local fmt = _G[name]
         if type(fmt) ~= "string" then
             problems = problems + 1
-            Print("|cffff4040BRAK|r globalnego tekstu " .. name .. " (w tej wersji gry ma inna nazwe?)")
+            Print("|cffff4040MISSING|r global string " .. name .. " (renamed in this game version?)")
         else
-            -- w Forever teksty maja dodatkowe pola: dopelnij je ("1" pasuje do %s i %d)
+            -- Forever strings have extra fields: fill them in ("1" fits both %s and %d)
             local needed = 0
             for idx in fmt:gmatch("%%(%d+)%$") do
                 needed = math.max(needed, tonumber(idx))
@@ -665,21 +619,21 @@ local function RunTest()
             local ok, msg = pcall(string.format, fmt, unpackFn(filled))
             if not ok then
                 problems = problems + 1
-                Print("|cffff4040BLAD|r formatowania " .. name .. ": " .. tostring(msg)
-                    .. " | tekst: " .. fmt:gsub("|", "||"))
+                Print("|cffff4040ERROR|r formatting " .. name .. ": " .. tostring(msg)
+                    .. " | text: " .. fmt:gsub("|", "||"))
             else
                 local parsed = Parse(msg)
                 if parsed then
                     Print(string.format("|cff00ff00OK|r %s -> %s", name, parsed.kind))
                 else
                     problems = problems + 1
-                    Print("|cffff4040NIE ROZPOZNANO|r " .. name .. ": " .. msg:gsub("|", "||"))
+                    Print("|cffff4040NOT RECOGNIZED|r " .. name .. ": " .. msg:gsub("|", "||"))
                 end
             end
         end
     end
 
-    -- 2) podsumowanie: przykladowe dane w formacie historii lootu Blizzarda
+    -- 2) summary: sample data in the Blizzard loot history format
     if db.format == "summary" then
         if TargetFrame() then
             local function roll(name, class, state, value, winner)
@@ -697,14 +651,14 @@ local function RunTest()
                     roll("Morv-Testrealm", "HUNTER", ROLL_STATE.Pass),
                 },
             })
-            Print("Powinienes zobaczyc linie z przedmiotem [Worn Shortsword] w oknie " .. WindowName(db.frame) .. ".")
+            Print("You should see a block for [Worn Shortsword] in window " .. WindowName(db.frame) .. ".")
         else
-            Print("Okno " .. db.frame .. " nie istnieje - zmien okno w ustawieniach.")
+            Print("Window " .. db.frame .. " does not exist - pick another window in the settings.")
         end
     else
-        Print("Tryb raw: test sprawdza tylko rozpoznawanie komunikatow (przelacz format na summary, zeby zobaczyc linie).")
+        Print("Raw mode: the test only checks message recognition (switch format to summary to see the block).")
     end
-    Print(problems == 0 and "TEST zakonczony: wszystko rozpoznane." or ("TEST zakonczony: problemy: " .. problems))
+    Print(problems == 0 and "TEST finished: everything recognized." or ("TEST finished: problems: " .. problems))
 end
 
 local function HandleSlash(input)
@@ -715,48 +669,22 @@ local function HandleSlash(input)
         Help()
     elseif cmd == "test" then
         RunTest()
-    elseif cmd == "dump" then
-        -- zapisuje wszystkie teksty LOOT_ROLL_* z gry do pliku ustawien (po /reload), do diagnozy
-        db.strings = {}
-        local n = 0
-        for gname, text in pairs(_G) do
-            if type(gname) == "string" and type(text) == "string" and gname:find("^LOOT_ROLL_") then
-                db.strings[gname] = text
-                n = n + 1
-            end
-        end
-        Print("zapisano " .. n .. " tekstow LOOT_ROLL_* - zrob /reload, zeby trafily do pliku")
-    elseif cmd == "debug" then
-        local v = ParseBool(rest)
-        if v == nil then
-            Print("Uzyj: /wwt debug on  albo  off  (zapisywanie bledow Lua do pliku ustawien)")
-            return
-        end
-        db.debug = v
-        Print("debug: " .. OnOff(v) .. " | zapisanych bledow: " .. #(db.errors or {}))
-    elseif cmd == "errors" then
-        if rest:lower() == "clear" then
-            db.errors = nil
-            Print("lista bledow wyczyszczona")
-        else
-            Print("zapisanych bledow: " .. #(db.errors or {}) .. " (zapisuja sie do pliku po /reload; /wwt errors clear = wyczysc)")
-        end
     elseif cmd == "config" or cmd == "options" or cmd == "ui" then
         if settingsCategory and Settings and Settings.OpenToCategory then
             Settings.OpenToCategory(settingsCategory:GetID())
         else
-            Print("panel ustawien jest niedostepny w tej wersji gry - uzyj komend z /wwt")
+            Print("The settings panel is not available in this game version - use the /wwt commands.")
         end
     elseif cmd == "list" then
         for i = 1, (NUM_CHAT_WINDOWS or 10) do
             if _G["ChatFrame" .. i] then
-                Print(string.format("%d - %s%s", i, WindowName(i), i == db.frame and "  <- tutaj" or ""))
+                Print(string.format("%d - %s%s", i, WindowName(i), i == db.frame and "  <- here" or ""))
             end
         end
-    elseif cmd == "frame" or cmd == "window" or cmd == "okno" then
+    elseif cmd == "frame" or cmd == "window" then
         local n = FindWindow(rest)
         if not n then
-            Print("Nie ma takiego okna. Wpisz /wwt list.")
+            Print("No such window. Type /wwt list.")
             return
         end
         db.frame = n
@@ -765,7 +693,7 @@ local function HandleSlash(input)
     elseif cmd == "format" then
         rest = rest:lower()
         if rest ~= "summary" and rest ~= "raw" then
-            Print("Uzyj: /wwt format summary  albo  raw")
+            Print("Usage: /wwt format summary  or  raw")
             return
         end
         db.format = rest
@@ -777,7 +705,7 @@ local function HandleSlash(input)
     elseif cmd == "only" then
         local t = TYPE_ALIASES[rest:lower()]
         if not t then
-            Print("Uzyj: /wwt only need  (albo greed, transmog, pass)")
+            Print("Usage: /wwt only need  (or greed, transmog, pass)")
             return
         end
         db.rolls = true
@@ -788,7 +716,7 @@ local function HandleSlash(input)
     elseif TYPE_ALIASES[cmd] then
         local v = ParseBool(rest)
         if v == nil then
-            Print("Uzyj: /wwt " .. cmd .. " on  albo  off")
+            Print("Usage: /wwt " .. cmd .. " on  or  off")
             return
         end
         db[TYPE_ALIASES[cmd]] = v
@@ -799,7 +727,7 @@ local function HandleSlash(input)
     elseif cmd == "rolls" or cmd == "wins" or cmd == "others" or cmd == "colors" then
         local v = ParseBool(rest)
         if v == nil then
-            Print("Uzyj: /wwt " .. cmd .. " on  albo  off")
+            Print("Usage: /wwt " .. cmd .. " on  or  off")
             return
         end
         if cmd == "rolls" then db.rolls = v
@@ -812,8 +740,8 @@ local function HandleSlash(input)
     end
 end
 
--- Panel w Esc > Options > AddOns > Who Won That (API Settings z Blizzard_Settings_Shared).
--- Ustawienia zapisuja sie od razu w WhoWonThatDB; komendy /wwt dzialaja nadal.
+-- Panel in Esc > Options > AddOns > Who Won That (Settings API from Blizzard_Settings_Shared).
+-- Settings are saved straight into WhoWonThatDB; the /wwt commands keep working.
 local function RegisterPanel()
     if not (Settings and Settings.RegisterVerticalLayoutCategory and Settings.RegisterAddOnSetting
         and Settings.CreateCheckbox and Settings.CreateDropdown and Settings.CreateControlTextContainer) then
@@ -832,9 +760,9 @@ local function RegisterPanel()
         return Settings.CreateCheckbox(category, setting, tooltip)
     end
 
-    -- Okno czatu: lista okien z numerami i nazwami
+    -- Chat window: list of windows with numbers and names
     local frameSetting = Settings.RegisterAddOnSetting(category, "WWT_FRAME", "frame", db,
-        Settings.VarType.Number, "Okno czatu", DEFAULTS.frame)
+        Settings.VarType.Number, "Chat window", DEFAULTS.frame)
     frameSetting:SetValueChangedCallback(function()
         EnsureLootGroup()
     end)
@@ -848,7 +776,7 @@ local function RegisterPanel()
         return container:GetData()
     end
     Settings.CreateDropdown(category, frameSetting, WindowOptions,
-        "Okno czatu, w ktorym pokazywane sa rolle i wygrane (np. Party/Dungs). Inne okna nie sa zmieniane.")
+        "Chat window that shows rolls and winners (e.g. your party/dungeon tab). Other windows are not changed.")
 
     -- Format
     local formatSetting = Settings.RegisterAddOnSetting(category, "WWT_FORMAT", "format", db,
@@ -858,33 +786,33 @@ local function RegisterPanel()
     end)
     local function FormatOptions()
         local container = Settings.CreateControlTextContainer()
-        container:Add("summary", "Jedna linia na przedmiot",
-            "Po zakonczeniu rolla: przedmiot, kto wygral i kto ile rzucil.")
-        container:Add("raw", "Oryginalne linie",
-            "Zostawia zwykle komunikaty Blizzarda (z filtrem typow rolli).")
+        container:Add("summary", "Readable block per item",
+            "When a roll ends: the item, who won and what everyone rolled.")
+        container:Add("raw", "Original lines",
+            "Keeps Blizzard's normal messages (filtered by roll type).")
         return container:GetData()
     end
-    Settings.CreateDropdown(category, formatSetting, FormatOptions, "Jak pokazywac rolle w tym oknie.")
+    Settings.CreateDropdown(category, formatSetting, FormatOptions, "How rolls are shown in that window.")
 
-    -- Co pokazywac
-    local rollsInit = AddBool("rolls", "Pokazuj rolle innych graczy",
-        "Kto wybral Need/Greed/Transmog/Pass i ile rzucil.")
+    -- What to show
+    local rollsInit = AddBool("rolls", "Show other players' rolls",
+        "Who chose Need/Greed/Transmog/Pass and what they rolled.")
     local function Child(key, label, tooltip)
         local init = AddBool(key, label, tooltip)
         if init and init.SetParentInitializer and rollsInit then
             init:SetParentInitializer(rollsInit)
         end
     end
-    Child("need", "Need", "Pokazuj rolle Need.")
-    Child("greed", "Greed", "Pokazuj rolle Greed.")
-    Child("transmog", "Transmog", "Pokazuj rolle Transmog.")
-    Child("pass", "Pass", "Pokazuj osoby, ktore spasowaly.")
-    AddBool("wins", "Pokazuj, kto wygral",
-        "Zwyciezca rolla oraz informacja, ze wszyscy spasowali.")
-    AddBool("hideOthers", "Ukryj reszte lupow w tym oknie",
-        "Ukrywa komunikaty o podniesionych przedmiotach, wytworzonych, z questow, od mistrza lupow itp.")
-    AddBool("classColors", "Kolory klas przy nickach",
-        "Nicki w kolorach klas. Jesli masz EllesmereUI, uzywane sa jego kolory klas (takie same jak w reszcie interfejsu).")
+    Child("need", "Need", "Show Need rolls.")
+    Child("greed", "Greed", "Show Greed rolls.")
+    Child("transmog", "Transmog", "Show Transmog rolls.")
+    Child("pass", "Pass", "Show players who passed.")
+    AddBool("wins", "Show who won",
+        "The roll winner, and a note when everyone passed.")
+    AddBool("hideOthers", "Hide other loot in that window",
+        "Hides messages about picked up, crafted, quest and master-looter items etc.")
+    AddBool("classColors", "Class colors on names",
+        "Colors player names by class. If EllesmereUI is installed its class colors are used.")
 
     Settings.RegisterAddOnCategory(category)
 end
@@ -896,24 +824,6 @@ f:SetScript("OnEvent", function(_, event, arg1, arg2)
     if event == "ADDON_LOADED" and arg1 == ADDON then
         WhoWonThatDB = WhoWonThatDB or {}
         db = WhoWonThatDB
-        db.mainLoaded = "v4.0 glowny plik dziala, historia lootu: " .. tostring(HAS_HISTORY)
-        -- jednorazowe przeniesienie ustawien z poprzedniej nazwy dodatku (RollsOnly)
-        if db.schema == nil and type(RollsOnlyDB) == "table" then
-            for _, k in ipairs({ "frame", "format", "rolls", "need", "greed", "transmog", "pass",
-                "wins", "hideOthers", "classColors" }) do
-                if RollsOnlyDB[k] ~= nil and db[k] == nil then
-                    db[k] = RollsOnlyDB[k]
-                end
-            end
-        end
-        if db.schema ~= 2 then
-            -- porzadki po wersjach testowych: diagnostyka wylaczona, stare dane usuniete
-            db.schema = 2
-            db.debug = false
-            db.errors = nil
-            db.strings = nil
-            db.colors = nil
-        end
         for k, v in pairs(DEFAULTS) do
             if db[k] == nil then
                 db[k] = v
@@ -928,11 +838,11 @@ f:SetScript("OnEvent", function(_, event, arg1, arg2)
         if HAS_HISTORY then
             MarkExistingDrops()
             if C_Timer and C_Timer.After then
-                C_Timer.After(3, MarkExistingDrops) -- historia bywa gotowa dopiero chwile po wejsciu do gry
+                C_Timer.After(3, MarkExistingDrops) -- the history is sometimes ready only a moment after login
             end
             f:RegisterEvent("LOOT_HISTORY_UPDATE_DROP")
         else
-            f:RegisterEvent("CHAT_MSG_LOOT") -- rezerwa: skladanie rolli z tekstow czatu
+            f:RegisterEvent("CHAT_MSG_LOOT") -- fallback: assemble rolls from chat messages
         end
         EnsureLootGroup()
     elseif event == "LOOT_HISTORY_UPDATE_DROP" then

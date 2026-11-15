@@ -2,6 +2,10 @@ package-as: WhoWonThat
 
 enable-toc-creation: no
 
+manual-changelog:
+  filename: CHANGELOG.md
+  markup-type: markdown
+
 ignore:
   - ".github"
   - ".gitignore"
@@ -9,6 +13,7 @@ ignore:
   - ".luarc.json"
   - ".pkgmeta"
   - "build.ps1"
+  - "CURSEFORGE_DESCRIPTION.md"
   - "dist"
   - "logo.webp"
   - "profil_questbang.txt"

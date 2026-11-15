@@ -4,6 +4,7 @@ std = "lua54"
 -- Ignore certain warnings common in WoW addons
 ignore = {
     "212", -- Unused argument (common in WoW event handlers)
+    "113", -- Access to undefined global: the WoW API has thousands of globals, not all listed here
 }
 
 -- WoW Engine and Addon globals
@@ -24,9 +25,6 @@ globals = {
     "wipe",
     "date",
     "time",
-    "debugstack",
-    "seterrorhandler",
-    "geterrorhandler",
     "issecretvalue",
 
     -- Modern WoW APIs
@@ -35,7 +33,6 @@ globals = {
 
     -- SavedVariables
     "WhoWonThatDB",
-    "RollsOnlyDB",
 
     -- Global table
     "_G",

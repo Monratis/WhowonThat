@@ -21,14 +21,10 @@
     "wipe",
     "date",
     "time",
-    "debugstack",
-    "seterrorhandler",
-    "geterrorhandler",
     "issecretvalue",
     "C_LootHistory",
     "C_Timer",
     "WhoWonThatDB",
-    "RollsOnlyDB",
     "_G"
   ],
   "diagnostics.disable": [

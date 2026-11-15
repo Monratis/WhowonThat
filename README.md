@@ -1,48 +1,67 @@
 <p align="center">
-  <img src="logo.webp" alt="Who Won That Logo" width="180" />
+  <img src="logo.webp" alt="Who Won That" width="180" />
 </p>
 
 # Who Won That
 
-**Who Won That** is an addon created for **WoW Forever** (Midnight engine, Interface `16001`) that cleans up and consolidates loot rolls and results in your chat window. Instead of cluttering your chat frame with dozens of individual roll notifications, it gathers roll information and displays a single, clean, readable summary per item upon roll completion.
+Shows **who rolled what and who won** for group loot, in a chat window of your choice, without the pickup spam.
+
+For every item you get one short, readable block once the roll is finished:
+
+```
+[Worn Shortsword]
+   (crown) Brakk  WON  (dice) Need 74
+        Seluna  (coin) Greed 55
+        Monra   (dice) Need OS 31
+        Morv    (pass) Pass
+```
+
+Made for **WoW Forever** (Midnight engine, Interface `16001`).
 
 ## Features
 
-- **Consolidated Loot Rolls**: Combines roll attempts into a clean single line per item (e.g. `[Item] > Player won (Need 74) | OtherPlayer Greed 55, Another Pass`).
-- **Winner Highlights**: Easily see who won with an intuitive crown icon (`♔`) and win status.
-- **Class Colors**: Player names are colored according to their class (compatible with custom class colors such as EllesmereUI).
-- **Target Chat Frame**: Route rolls and win summaries to a designated chat tab or window (e.g. Chat Frame 4 for Dungeons/Party) while keeping your main chat clean.
-- **Granular Filtering**: Toggle Need, Greed, Transmog, Disenchant, and Pass visibility individually.
-- **Loot Suppression**: Option to hide non-roll loot clutter (crafted items, quest rewards, normal drops) in the designated chat frame.
-- **WoW Forever & C_LootHistory Integration**: Leverages the Midnight engine loot history APIs (`C_LootHistory`) with automatic chat-parsing fallback.
-
-## In-Game Configuration
-
-Open the Blizzard Settings menu:
-`Game Menu (Esc) > Options > AddOns > Who Won That`
-
-Or use slash commands:
-- `/wwt` or `/whowonthat` - Show current status and available commands.
-- `/wwt frame <1-10>` - Choose which chat window receives loot summaries.
-- `/wwt format summary|raw` - Switch between single-line summary or Blizzard raw lines.
-- `/wwt rolls on|off` - Toggle display of other players' rolls.
-- `/wwt need on|off` - Toggle Need rolls.
-- `/wwt greed on|off` - Toggle Greed rolls.
-- `/wwt transmog on|off` - Toggle Transmog rolls.
-- `/wwt pass on|off` - Toggle Pass notifications.
-- `/wwt wins on|off` - Toggle display of winners.
-- `/wwt colors on|off` - Toggle class coloring on player names.
-- `/wwt others on|off` - Toggle hiding of other non-roll loot messages.
-- `/wwt only <need|greed|transmog|pass>` - Show only a specific roll type.
-- `/wwt test` - Display sample test roll lines.
+- **Readable roll summary** - winner first with a crown icon, everyone else sorted by roll.
+- **Choose the window** - send rolls to e.g. your party/dungeon tab; other chat windows are not touched.
+- **Per-type filters** - show only Need, Greed, Transmog and/or Pass; show/hide winners.
+- **Less loot spam** - optionally hide the rest of the loot messages (picked up, crafted, quest...) in that window.
+- **Class colors** - uses EllesmereUI's class colors when installed, Blizzard's otherwise.
+- **Full player links** - names are real `Name-Realm` player links (the realm is not displayed), so chat addons can color and whisper them.
+- **Original lines mode** - `raw` format keeps Blizzard's own roll messages, just filtered by type.
+- Uses the game's loot history (`C_LootHistory`) and falls back to parsing chat messages if it is unavailable.
 
 ## Installation
 
-1. Download or clone this repository (or download the pre-packaged zip from Releases / `dist/`).
-2. Place the `WhoWonThat` folder into your WoW Forever directory:
-   `<WoW Forever>\Interface\AddOns\WhoWonThat\`
-   *(Ensure `WhoWonThat.toc` and `WhoWonThat.lua` are directly inside the `WhoWonThat` folder)*
-3. Restart the game or reload UI (`/reload`).
+- **CurseForge / addon manager** - install *Who Won That*.
+- **Manual** - copy the `WhoWonThat` folder to `<WoW Forever>\_forever_\Interface\AddOns\` so that
+  `WhoWonThat\WhoWonThat.toc` exists, then restart the game (a new addon needs a full restart, not just `/reload`).
+
+## Configuration
+
+`Esc > Options > AddOns > Who Won That`, or slash commands (`/wwt` or `/whowonthat`):
+
+| Command | What it does |
+| --- | --- |
+| `/wwt` | Show current settings and the command list |
+| `/wwt config` | Open the settings panel |
+| `/wwt list` | List chat windows with their numbers |
+| `/wwt frame <number or name>` | Choose the window that shows rolls (default: window 1) |
+| `/wwt format summary` / `raw` | Readable block per item, or Blizzard's original lines |
+| `/wwt rolls on/off` | Show other players' rolls |
+| `/wwt need/greed/transmog/pass on/off` | Toggle a single roll type |
+| `/wwt only need` (or greed/transmog/pass) | Show only that roll type |
+| `/wwt all` | Show all roll types |
+| `/wwt wins on/off` | Show who won / that everyone passed |
+| `/wwt others on/off` | Hide the other loot messages in that window |
+| `/wwt colors on/off` | Class colors on names |
+| `/wwt test` | Print a sample roll to the chosen window |
+
+The addon enables the *Loot* message group in the chosen window automatically.
+
+## Development
+
+- `build.ps1` builds `dist/WhoWonThat-v<version>.zip` for manual installs.
+- Releases to CurseForge are built by the [BigWigs packager](https://github.com/BigWigsMods/packager)
+  from a `v*` git tag (see `.github/workflows` and `.pkgmeta`).
 
 ## License
 

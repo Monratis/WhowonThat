@@ -43,7 +43,9 @@ New-Item -ItemType Directory -Force -Path $stageDir | Out-Null
 $filesToInclude = @(
     "WhoWonThat.toc",
     "WhoWonThat.lua",
-    "README.md"
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
 )
 
 foreach ($file in $filesToInclude) {
