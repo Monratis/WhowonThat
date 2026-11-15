@@ -15,13 +15,14 @@ local DEFAULTS = {
     de = true,          -- (raw mode only) Disenchant rolls, if the game has them
     pass = true,        -- show passes
     wins = true,        -- show who won / that everyone passed
-    hideOthers = true,  -- hide other loot messages in that window (picked up items etc.)
+    hideOthers = true,  -- always on: hide other loot messages in that window (picked up items etc.)
     classColors = true, -- color names by class (custom palette if present, else Blizzard colors)
     header = true,      -- put the addon name in front of each item line
-    byBoss = true,      -- print the boss name above the items of one kill
-    flagUnusable = true, -- mark Need rolls on armor the class cannot wear
+    byBoss = true,      -- always on: "Loot from: <boss>" above the items of one kill
+    flagUnusable = true, -- always on: red X on Need rolls for armor the class cannot wear
     announce = "off",   -- send results to group chat: "off", "mine" (only my wins) or "all"
     hideWhenAnnounced = true, -- do not print my own block for a result that was announced in group chat
+    detail = "all",     -- how much to show: "winner", "rolls" (winner + Need/Greed) or "all" (also passes)
     layout = "auto",    -- "auto" = compact on a narrow chat window, "normal", or "compact"
 }
 
@@ -303,12 +304,15 @@ local KIND_ICON = {
 }
 
 -- e.g. "[dice] Need 74"
+-- Roll type colors: Need warm orange, Greed light blue, Pass grey
+local LABEL_COLOR = { need = "ff9d4d", greed = "6fb7ff", pass = "9d9d9d" }
+
 local function RollLabel(r, st, isWinner, extra)
     local icon = KIND_ICON[st.kind]
     -- the winning number is green, everyone else's is white
     local numberColor = isWinner and "|cff33ff33" or "|cffffffff"
     return (icon and (icon .. " ") or "")
-        .. "|cffaaaaaa" .. st.label .. "|r"
+        .. "|cff" .. (LABEL_COLOR[st.kind] or "aaaaaa") .. st.label .. "|r"
         .. (r.roll and (" " .. numberColor .. r.roll .. "|r") or "")
         .. (r.isSelf and "  |cffffd100(You)|r" or "")
         .. (extra or "")
@@ -343,24 +347,119 @@ end
 -- Red X icon (the game's "not ready" mark), used to flag a Need roll the player's class cannot use
 local ICON_CANT_USE = "|TInterface\\RaidFrame\\ReadyCheck-NotReady:14:14:0:0|t"
 
--- "Who Won That" in front of a line (short "WWT" on a narrow window); empty when turned off
-local function AddonTag(compact)
-    if not db.header then
-        return ""
+-- Chat windows cannot center text, so we measure it: the width of the window and of the text in the
+-- window's own font tell us how many spaces to put in front of the line.
+local measurer
+local function TextWidth(frame, text)
+    if not measurer then
+        local host = UIParent or frame
+        if not (host and host.CreateFontString) then
+            return nil
+        end
+        measurer = host:CreateFontString(nil, "OVERLAY")
+        measurer:Hide()
     end
-    return "|cff58c6fa" .. (compact and "WWT" or "Who Won That") .. "|r  "
+    local font, size, flags = frame:GetFont()
+    if not font then
+        return nil
+    end
+    measurer:SetFont(font, size, flags)
+    measurer:SetText(text)
+    return measurer:GetStringWidth()
 end
 
--- Item line. When a boss header was printed above, the item needs no addon name of its own.
-local function ItemLine(item, compact, grouped)
-    if grouped then
-        return item
+-- Returns the spaces that center `text` (plain, without color codes) in the chat frame.
+local function CenterPadding(frame, text)
+    if not (frame.GetFont and frame.GetWidth) then
+        return ""
     end
-    return AddonTag(compact) .. item
+    local available = (frame:GetWidth() or 0) - 20 -- margins and scroll bar
+    local textWidth = TextWidth(frame, text)
+    local spaceWidth
+    if textWidth then
+        spaceWidth = TextWidth(frame, "a a") - TextWidth(frame, "aa")
+    end
+    if not textWidth or not spaceWidth or spaceWidth <= 0 or available <= textWidth then
+        return ""
+    end
+    return string.rep(" ", math.floor((available - textWidth) / 2 / spaceWidth))
+end
+
+-- `plain` is what is measured, `colored` is what is printed (same visible text, with color codes)
+local function Centered(frame, plain, colored)
+    return CenterPadding(frame, plain) .. colored
+end
+
+-- ===== Clickable boss name =====
+-- The boss name is a link that opens the player's own loot browser on the page of the item that dropped:
+-- DungeonJournal (ForeverDungeonJournal) first, then AtlasLoot. Without either, the name stays plain text.
+local BOSS_LINK = "addon:WhoWonThat:boss:"
+
+local function BossBrowser()
+    local journal = _G.ForeverDungeonJournal_NS
+    if type(journal) == "table" and type(journal.OpenItemSource) == "function" then
+        return "journal"
+    end
+    local atlas = _G.AtlasLoot
+    if type(atlas) == "table" and type(atlas.GUI) == "table" and type(atlas.GUI.Toggle) == "function" then
+        return "atlas"
+    end
+    return nil
+end
+
+local function OpenBossSource(itemID)
+    local browser = BossBrowser()
+    if browser == "journal" then
+        local ok, opened = pcall(_G.ForeverDungeonJournal_NS.OpenItemSource, itemID)
+        if ok and opened then
+            return true
+        end
+        return false
+    elseif browser == "atlas" then
+        -- AtlasLoot has no call to jump to a boss, so this opens its window.
+        local gui = _G.AtlasLoot.GUI
+        if not (gui.frame and gui.frame.IsVisible and gui.frame:IsVisible()) then
+            pcall(gui.Toggle, gui)
+        end
+        return true
+    end
+    return false
+end
+
+local function OnBossLink(link)
+    if type(link) ~= "string" or (issecretvalue and issecretvalue(link)) then
+        return
+    end
+    if link:sub(1, #BOSS_LINK) ~= BOSS_LINK then
+        return
+    end
+    local itemID = tonumber(link:sub(#BOSS_LINK + 1))
+    if itemID then
+        OpenBossSource(itemID)
+    end
+end
+
+-- Small item icon in front of the link (like the loot window); empty if the game has no data for the item
+local function ItemIcon(item)
+    local getInfo = (C_Item and C_Item.GetItemInfoInstant) or GetItemInfoInstant
+    if not getInfo then
+        return ""
+    end
+    local _, _, _, _, icon = getInfo(item)
+    if type(icon) == "number" or type(icon) == "string" then
+        return "|T" .. icon .. ":14:14:0:0|t "
+    end
+    return ""
+end
+
+local function ItemLine(item)
+    return ItemIcon(item) .. item
 end
 
 -- Name of the encounter (boss) a drop belongs to, from the game's loot history. Nil if unknown.
 local lastEncounterKey
+local lastTitleAt = 0
+local TITLE_PAUSE = 30 -- seconds without a block after which the title is printed again (no boss data)
 local function EncounterName(encounterID)
     if not encounterID or not C_LootHistory or not C_LootHistory.GetInfoForEncounter then
         return nil
@@ -425,18 +524,36 @@ local function RenderDrop(info, encounterID)
     if db.byBoss then
         bossName, bossKey = EncounterName(encounterID)
     end
-    local function BossHeader(compact)
-        if bossName and bossKey ~= lastEncounterKey then
+    -- Heading: the addon title (centered, alone on its line) and, when a new kill starts, "Loot from: <boss>"
+    -- (centered, next line). Without boss data the title is repeated only after a pause.
+    local function BossHeader()
+        local newBoss = bossName and bossKey ~= lastEncounterKey
+        if newBoss then
             lastEncounterKey = bossKey
-            Emit(frame, AddonTag(compact) .. "|cffffd100" .. bossName .. "|r", "LOOT")
+        end
+        local now = GetTime()
+        if db.header and (newBoss or (not bossName and now - lastTitleAt > TITLE_PAUSE)) then
+            Emit(frame, Centered(frame, "Who Won That", "|cff58c6faWho Won That|r"), "LOOT")
+            lastTitleAt = now
+        end
+        if newBoss then
+            local itemID = tonumber(item:match("item:(%d+)"))
+            if itemID and BossBrowser() then
+                -- clickable: "[Boss]" opens the journal / AtlasLoot
+                Emit(frame, Centered(frame, "Loot from: [" .. bossName .. "]",
+                    "|cff9d9d9dLoot from:|r |cffffd100|H" .. BOSS_LINK .. itemID .. "|h[" .. bossName .. "]|h|r"), "LOOT")
+            else
+                Emit(frame, Centered(frame, "Loot from: " .. bossName,
+                    "|cff9d9d9dLoot from:|r |cffffd100" .. bossName .. "|r"), "LOOT")
+            end
         end
     end
 
     if info.allPassed then
         if db.wins then
             local compact = IsCompact(frame)
-            BossHeader(compact)
-            Emit(frame, ItemLine(item, compact, bossName ~= nil), "LOOT")
+            BossHeader()
+            Emit(frame, ItemLine(item), "LOOT")
             Emit(frame, (compact and "  " or "     ") .. "|cffaaaaaaNobody wanted it (everyone passed)|r", "LOOT")
         end
         return
@@ -482,8 +599,8 @@ local function RenderDrop(info, encounterID)
         return nil
     end
 
-    BossHeader(compact)
-    Emit(frame, ItemLine(item, compact, bossName ~= nil), "LOOT")
+    BossHeader()
+    Emit(frame, ItemLine(item), "LOOT")
     if showWinner then
         local line = indentWinner .. ICON_CROWN .. " "
             .. PlayerLink(winner.playerName, ShortName(winner.playerName), winner.playerClass, Display(winner.playerName))
@@ -494,10 +611,20 @@ local function RenderDrop(info, encounterID)
         end
         Emit(frame, line, "LOOT")
     end
+    local passers = {}
     for i = 1, #list do
         local r, st = list[i].r, list[i].st
-        Emit(frame, indentOthers .. PlayerLink(r.playerName, ShortName(r.playerName), r.playerClass, Display(r.playerName))
-            .. "  " .. RollLabel(r, st, false, Flag(r, st)), "LOOT")
+        if st.kind == "pass" then
+            passers[#passers + 1] = PlayerLink(r.playerName, ShortName(r.playerName), r.playerClass, Display(r.playerName))
+        else
+            Emit(frame, indentOthers .. PlayerLink(r.playerName, ShortName(r.playerName), r.playerClass, Display(r.playerName))
+                .. "  " .. RollLabel(r, st, false, Flag(r, st)), "LOOT")
+        end
+    end
+    if #passers > 0 then
+        -- everyone who passed on one quiet line instead of one line each
+        Emit(frame, indentOthers .. KIND_ICON.pass .. " |cff9d9d9d" .. (compact and "Pass: " or "Passed: ") .. "|r"
+            .. table.concat(passers, "|cff9d9d9d, |r"), "LOOT")
     end
 end
 
@@ -923,6 +1050,21 @@ local function HandleSlash(input)
     end
 end
 
+-- The panel offers one "detail" choice; it sets the individual switches the display code reads.
+local function ApplyDetail()
+    local detail = db.detail
+    db.wins = true
+    db.de = true
+    if detail == "winner" then
+        db.rolls, db.need, db.greed, db.pass = false, true, true, true
+    elseif detail == "rolls" then
+        db.rolls, db.need, db.greed, db.pass = true, true, true, false
+    else
+        db.detail = "all"
+        db.rolls, db.need, db.greed, db.pass = true, true, true, true
+    end
+end
+
 -- Panel in Esc > Options > AddOns > Who Won That (Settings API from Blizzard_Settings_Shared).
 -- Settings are saved straight into WhoWonThatDB; the /wwt commands keep working.
 local function RegisterPanel()
@@ -934,16 +1076,44 @@ local function RegisterPanel()
     local category = Settings.RegisterVerticalLayoutCategory("Who Won That")
     settingsCategory = category
 
-    local function AddBool(key, label, tooltip, onChange)
+    -- Section headers (skipped quietly if this game version has no such widget)
+    local function Header(text)
+        local panel = _G.SettingsPanel
+        if CreateSettingsListSectionHeaderInitializer and panel and panel.GetLayout then
+            local layout = panel:GetLayout(category)
+            if layout and layout.AddInitializer then
+                layout:AddInitializer(CreateSettingsListSectionHeaderInitializer(text))
+            end
+        end
+    end
+
+    local function AddBool(key, label, tooltip)
         local setting = Settings.RegisterAddOnSetting(category, "WWT_" .. key:upper(), key, db,
             Settings.VarType.Boolean, label, DEFAULTS[key])
-        if onChange then
-            setting:SetValueChangedCallback(onChange)
-        end
         return Settings.CreateCheckbox(category, setting, tooltip)
     end
 
-    -- Chat window: list of windows with numbers and names
+    -- Dropdown from a list of { value, label, tooltip }
+    local function AddChoice(key, label, tooltip, choices, varType, onChange)
+        local setting = Settings.RegisterAddOnSetting(category, "WWT_" .. key:upper(), key, db,
+            varType or Settings.VarType.String, label, DEFAULTS[key])
+        if onChange then
+            setting:SetValueChangedCallback(onChange)
+        end
+        local function Options()
+            local container = Settings.CreateControlTextContainer()
+            for _, c in ipairs(choices) do
+                container:Add(c[1], c[2], c[3])
+            end
+            return container:GetData()
+        end
+        return Settings.CreateDropdown(category, setting, Options, tooltip)
+    end
+
+    -- ===== Where =====
+    Header("Chat")
+
+    -- only windows the player really has (see IsUsableWindow)
     local frameSetting = Settings.RegisterAddOnSetting(category, "WWT_FRAME", "frame", db,
         Settings.VarType.Number, "Chat window", DEFAULTS.frame)
     frameSetting:SetValueChangedCallback(function()
@@ -967,90 +1137,49 @@ local function RegisterPanel()
         return container:GetData()
     end
     Settings.CreateDropdown(category, frameSetting, WindowOptions,
-        "Chat window that shows rolls and winners (e.g. your party/dungeon tab). Other windows are not changed.")
+        "The chat tab that shows the roll results (e.g. your party/dungeon tab). Other tabs are not touched.")
 
-    -- Format
-    local formatSetting = Settings.RegisterAddOnSetting(category, "WWT_FORMAT", "format", db,
-        Settings.VarType.String, "Format", DEFAULTS.format)
-    formatSetting:SetValueChangedCallback(function()
-        wipe(items)
-    end)
-    local function FormatOptions()
-        local container = Settings.CreateControlTextContainer()
-        container:Add("summary", "Readable block per item",
-            "When a roll ends: the item, who won and what everyone rolled.")
-        container:Add("raw", "Original lines",
-            "Keeps Blizzard's normal messages (filtered by roll type).")
-        return container:GetData()
+    AddChoice("layout", "Layout",
+        "Compact uses smaller indents and shortens long names, for small chat windows.", {
+            { "auto", "Automatic", "Compact when the chat window is narrow." },
+            { "normal", "Normal", "Full names and wide indents." },
+            { "compact", "Compact", "Smaller indents, long names shortened with .." },
+        })
+
+    AddChoice("detail", "Detail",
+        "How much of each roll is printed.", {
+            { "all", "Everyone's rolls", "Winner, every Need/Greed roll, and who passed." },
+            { "rolls", "Winner and Need/Greed", "Winner and the Need/Greed rolls, without the passes." },
+            { "winner", "Winner only", "Just who won each item." },
+        }, nil, ApplyDetail)
+
+
+    -- ===== Group chat =====
+    Header("Group chat")
+
+    local announceInit = AddChoice("announce", "Announce results",
+        "Tells your group who won. Not sent while the game restricts addon chat. Waits a random moment and never repeats a line another player's addon already sent.", {
+            { "off", "Off", "Nothing is sent to other players." },
+            { "mine", "Only my wins", "One line to party/raid chat when you win an item." },
+            { "all", "All results", "One line per item. If several group members use this, expect duplicates only when they announce at the same moment." },
+        })
+    local hideInit = AddBool("hideWhenAnnounced", "Hide my block when announced",
+        "If the result was announced in group chat (by you or another player), your own detailed block is not printed again.")
+    if hideInit and hideInit.SetParentInitializer and announceInit then
+        -- only meaningful while announcements are on
+        hideInit:SetParentInitializer(announceInit, function()
+            return db.announce ~= "off"
+        end)
     end
-    Settings.CreateDropdown(category, formatSetting, FormatOptions, "How rolls are shown in that window.")
 
-    -- Layout: compact for narrow chat windows
-    local layoutSetting = Settings.RegisterAddOnSetting(category, "WWT_LAYOUT", "layout", db,
-        Settings.VarType.String, "Layout", DEFAULTS.layout)
-    local function LayoutOptions()
-        local container = Settings.CreateControlTextContainer()
-        container:Add("auto", "Automatic",
-            "Compact when the chat window is narrow, normal otherwise.")
-        container:Add("normal", "Normal", "Full names and wide indents.")
-        container:Add("compact", "Compact",
-            "Smaller indents and long names shortened with .. - for small chat windows.")
-        return container:GetData()
-    end
-    Settings.CreateDropdown(category, layoutSetting, LayoutOptions,
-        "Use the compact layout if your chat window is small and lines wrap.")
-
-    -- Announce results to group chat (off by default)
-    local announceSetting = Settings.RegisterAddOnSetting(category, "WWT_ANNOUNCE", "announce", db,
-        Settings.VarType.String, "Announce to group chat", DEFAULTS.announce)
-    local function AnnounceOptions()
-        local container = Settings.CreateControlTextContainer()
-        container:Add("off", "Off", "Nothing is sent to other players.")
-        container:Add("mine", "Only my wins",
-            "Sends one line to party/raid chat when YOU win an item.")
-        container:Add("all", "All results",
-            "Sends one line per item to party/raid chat. If several group members use this, everyone announces.")
-        return container:GetData()
-    end
-    Settings.CreateDropdown(category, announceSetting, AnnounceOptions,
-        "Optionally tells your group who won. Off by default. Not sent while the game restricts addon chat (e.g. during boss fights). Waits a random moment and does not repeat a line another player's addon already sent.")
-    AddBool("hideWhenAnnounced", "Hide my roll block when announced",
-        "Only with announcements on: if the result was announced in group chat (by you or another player), your own detailed block is not printed again.")
-
-    -- What to show
-    local rollsInit = AddBool("rolls", "Show other players' rolls",
-        "Who chose Need/Greed/Pass and what they rolled.")
-    local function Child(key, label, tooltip)
-        local init = AddBool(key, label, tooltip)
-        if init and init.SetParentInitializer and rollsInit then
-            init:SetParentInitializer(rollsInit)
-        end
-    end
-    Child("need", "Need", "Show Need rolls.")
-    Child("greed", "Greed", "Show Greed rolls.")
-    Child("de", "Disenchant", "Show Disenchant rolls (only in the \"Original lines\" format, if the game has them).")
-    Child("pass", "Pass", "Show players who passed.")
-    AddBool("wins", "Show who won",
-        "The roll winner, and a note when everyone passed.")
-    AddBool("hideOthers", "Hide other loot in that window",
-        "Hides messages about picked up, crafted, quest and master-looter items etc.")
-    AddBool("byBoss", "Group by boss",
-        "Prints the boss name above the items of one kill.")
-    AddBool("flagUnusable", "Flag impossible Need rolls",
-        "Marks a Need roll in red when the item is armor that player's class cannot wear (e.g. plate for a mage). Weapons and jewelry are never flagged.")
-    AddBool("header", "Show addon name",
-        "Puts \"Who Won That\" in front of each item line so you can tell where the block comes from.")
-    AddBool("classColors", "Class colors on names",
-        "Colors player names by class, using your custom class colors if you have them (e.g. EllesmereUI), otherwise the standard ones.")
-
-    -- Button: sample roll
-    local SettingsPanelRef = _G.SettingsPanel
-    if CreateSettingsButtonInitializer and SettingsPanelRef and SettingsPanelRef.GetLayout then
-        local layout = SettingsPanelRef:GetLayout(category)
+    -- ===== Test =====
+    local panel = _G.SettingsPanel
+    if CreateSettingsButtonInitializer and panel and panel.GetLayout then
+        local layout = panel:GetLayout(category)
         if layout and layout.AddInitializer then
-            layout:AddInitializer(CreateSettingsButtonInitializer("Test",
+            layout:AddInitializer(CreateSettingsButtonInitializer("Sample roll",
                 "Print sample roll", RunTest,
-                "Prints a sample roll to the chosen chat window and checks that the game's roll messages are recognized.", true))
+                "Prints a sample roll to the chosen chat tab so you can see how it looks.", true))
         end
     end
 
@@ -1069,6 +1198,11 @@ f:SetScript("OnEvent", function(_, event, arg1, arg2)
                 db[k] = v
             end
         end
+        ApplyDetail()
+        -- no switches in the panel for these: always the intended behavior
+        db.byBoss, db.classColors, db.header = true, true, true
+        db.flagUnusable, db.hideOthers = true, true
+        db.format = "summary"
         RegisterPanel()
     elseif event == "PLAYER_LOGIN" then
         BuildEntries()
@@ -1087,6 +1221,9 @@ f:SetScript("OnEvent", function(_, event, arg1, arg2)
         for _, e in ipairs({ "CHAT_MSG_PARTY", "CHAT_MSG_PARTY_LEADER", "CHAT_MSG_RAID", "CHAT_MSG_RAID_LEADER",
             "CHAT_MSG_INSTANCE_CHAT", "CHAT_MSG_INSTANCE_CHAT_LEADER" }) do
             f:RegisterEvent(e) -- to see announcements made by other players
+        end
+        if hooksecurefunc and SetItemRef then
+            hooksecurefunc("SetItemRef", OnBossLink) -- same way Questie handles its addon links
         end
         EnsureLootGroup()
     elseif event == "CHAT_MSG_PARTY" or event == "CHAT_MSG_PARTY_LEADER" or event == "CHAT_MSG_RAID"

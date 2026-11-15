@@ -1,5 +1,14 @@
 # Changelog
 
+## 4.5.0
+
+- Redesigned block: item icon, colored roll types, everyone who passed on one quiet line, the winning number in green.
+- Centered title ("Who Won That") with "Loot from: <boss>" under it. With DungeonJournal or AtlasLoot installed the boss name is a link that opens it.
+- A Need roll the class cannot use is marked with a red X at the end of the line (also for the winner).
+- Group announcements wait a random moment and never repeat a line another player's addon already sent; a result that was announced is not printed again as your own block (option).
+- Settings panel reduced to the essentials in two sections: chat window, layout, detail level, announcements and a sample button. Grouping by boss, impossible-Need flags, hiding other loot and class colors are always on.
+- The chat window list only offers windows you really have.
+
 ## 4.4.2
 
 - A Need roll the player's class cannot use is now marked with a red X at the end of the line (with "can't use" next to it on a wide window). It also applies to the winner.
