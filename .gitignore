@@ -1,3 +1,8 @@
+# Build output
+dist/
+release/
+*.zip
+
 # Temporary & Scratch files
 profil*.txt
 *.png

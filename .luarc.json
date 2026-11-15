@@ -1,0 +1,38 @@
+{
+  "$schema": "https://raw.githubusercontent.com/LuaLS/vscode-lua/master/setting/schema.json",
+  "runtime.version": "Lua 5.1",
+  "runtime.path": [
+    "?.lua",
+    "?/init.lua"
+  ],
+  "diagnostics.globals": [
+    "CreateFrame",
+    "DEFAULT_CHAT_FRAME",
+    "NUM_CHAT_WINDOWS",
+    "ChatTypeInfo",
+    "Settings",
+    "SlashCmdList",
+    "SLASH_WHOWONTHAT1",
+    "SLASH_WHOWONTHAT2",
+    "UnitName",
+    "GetRealmName",
+    "GetNormalizedRealmName",
+    "GetItemInfo",
+    "wipe",
+    "date",
+    "time",
+    "debugstack",
+    "seterrorhandler",
+    "geterrorhandler",
+    "issecretvalue",
+    "C_LootHistory",
+    "C_Timer",
+    "WhoWonThatDB",
+    "RollsOnlyDB",
+    "_G"
+  ],
+  "diagnostics.disable": [
+    "unused-local"
+  ],
+  "workspace.checkThirdParty": false
+}

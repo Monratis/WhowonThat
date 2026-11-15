@@ -1,0 +1,14 @@
+package-as: WhoWonThat
+
+enable-toc-creation: no
+
+ignore:
+  - ".github"
+  - ".gitignore"
+  - ".luacheckrc"
+  - ".luarc.json"
+  - ".pkgmeta"
+  - "build.ps1"
+  - "dist"
+  - "logo.webp"
+  - "profil_questbang.txt"

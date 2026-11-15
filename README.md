@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="logo.webp" alt="Who Won That Logo" width="180" />
+</p>
+
 # Who Won That
 
 **Who Won That** is a World of Warcraft addon that cleans up and consolidates loot rolls and results in your chat window. Instead of cluttering your chat frame with dozens of individual roll notifications, it gathers roll information and displays a single, clean, readable summary per item upon roll completion.
