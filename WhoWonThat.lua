@@ -21,6 +21,7 @@ local DEFAULTS = {
     byBoss = true,      -- print the boss name above the items of one kill
     flagUnusable = true, -- mark Need rolls on armor the class cannot wear
     announce = "off",   -- send results to group chat: "off", "mine" (only my wins) or "all"
+    hideWhenAnnounced = true, -- do not print my own block for a result that was announced in group chat
     layout = "auto",    -- "auto" = compact on a narrow chat window, "normal", or "compact"
 }
 
@@ -497,25 +498,92 @@ local function RenderDrop(info, encounterID)
     end
 end
 
--- Optional: tell the group who won. Skipped when the game restricts addon chat (e.g. during encounters).
+-- ===== Optional group announcement =====
+-- Anyone using this addon with announcements on could send the same line, so:
+--  * we wait a random moment after the roll ends (the first client to wake up announces),
+--  * if a line for the same item and winner already appeared in group chat, we do not send another,
+--  * a result that was announced is not printed again as our own block (option, on by default).
+local ANNOUNCE_PREFIX = "Who Won That: "
+local ANNOUNCE_DELAY_MIN, ANNOUNCE_DELAY_MAX = 2, 7 -- seconds
+local ANNOUNCE_MEMORY = 120 -- seconds an announcement is remembered
+local announcedAt = {}      -- ["itemID:Winner"] = time
+
+local function AnnounceActive()
+    return db and (db.announce == "mine" or db.announce == "all")
+end
+
+local function ItemIDOf(link)
+    return type(link) == "string" and link:match("item:(%d+)") or nil
+end
+
+local function AnnounceKey(itemID, winnerShort)
+    return itemID .. ":" .. winnerShort
+end
+
+local function RememberAnnouncement(key)
+    local now = GetTime()
+    for k, t in pairs(announcedAt) do
+        if now - t > ANNOUNCE_MEMORY then
+            announcedAt[k] = nil
+        end
+    end
+    announcedAt[key] = now
+end
+
+-- Group chat line from another player (or from us): remember who announced what.
+local function OnGroupChat(msg, sender)
+    if type(msg) ~= "string" or (issecretvalue and (issecretvalue(msg) or issecretvalue(sender))) then
+        return
+    end
+    if msg:sub(1, #ANNOUNCE_PREFIX) ~= ANNOUNCE_PREFIX then
+        return
+    end
+    local who = msg:match("^Who Won That: (%S+) won ")
+    local itemID = ItemIDOf(msg)
+    if not who or not itemID then
+        return
+    end
+    if who == "I" then
+        who = ShortName(type(sender) == "string" and sender or "")
+    end
+    if who ~= "" then
+        RememberAnnouncement(AnnounceKey(itemID, who))
+    end
+end
+
+local function DropAnnounceKey(info)
+    local winner = info.winner
+    local itemID = ItemIDOf(info.itemHyperlink)
+    if info.allPassed or type(winner) ~= "table" or not itemID or not UsableName(winner.playerName) then
+        return nil
+    end
+    return AnnounceKey(itemID, ShortName(winner.playerName))
+end
+
+local function AlreadyAnnounced(info)
+    local key = DropAnnounceKey(info)
+    local t = key and announcedAt[key]
+    return t ~= nil and GetTime() - t <= ANNOUNCE_MEMORY
+end
+
+-- Sends the announcement. Returns true if a line was sent. Not sent while the game restricts addon chat
+-- (e.g. during encounters) or when you are not in a group.
 local function Announce(info)
     local mode = db.announce
-    if mode ~= "mine" and mode ~= "all" then
-        return
-    end
+    local key = DropAnnounceKey(info)
     local winner = info.winner
-    if info.allPassed or type(winner) ~= "table" or not UsableName(winner.playerName) then
-        return
+    if (mode ~= "mine" and mode ~= "all") or not key then
+        return false
     end
     if mode == "mine" and not winner.isSelf then
-        return
+        return false
     end
     local item = info.itemHyperlink
     if type(item) ~= "string" or (issecretvalue and issecretvalue(item)) then
-        return
+        return false
     end
     if C_ChatInfo and C_ChatInfo.InChatMessagingLockdown and C_ChatInfo.InChatMessagingLockdown() then
-        return
+        return false
     end
     local channel
     if IsInRaid and IsInRaid() then
@@ -525,15 +593,34 @@ local function Announce(info)
     elseif IsInGroup and IsInGroup() then
         channel = "PARTY"
     else
-        return
+        return false
+    end
+    local send = SendChatMessage or (C_ChatInfo and C_ChatInfo.SendChatMessage) -- the same call Questie uses in Forever
+    if not send then
+        return false
     end
     local st = STATE_INFO[winner.state]
     local detail = st and (" (" .. st.label .. (winner.roll and (" " .. winner.roll) or "") .. ")") or ""
     local who = winner.isSelf and "I" or ShortName(winner.playerName)
-    local send = SendChatMessage or (C_ChatInfo and C_ChatInfo.SendChatMessage) -- the same call Questie uses in Forever
-    if send then
-        send("Who Won That: " .. who .. " won " .. item .. detail, channel)
+    RememberAnnouncement(key)
+    send(ANNOUNCE_PREFIX .. who .. " won " .. item .. detail, channel)
+    return true
+end
+
+-- A finished roll: announce it (if enabled and nobody did yet) and print our own block (unless the result was
+-- announced and the option to hide it is on).
+local function ProcessDrop(info, encounterID)
+    if not db then
+        return
     end
+    local announced = false
+    if AnnounceActive() then
+        announced = AlreadyAnnounced(info) or Announce(info)
+    end
+    if announced and db.hideWhenAnnounced then
+        return
+    end
+    RenderDrop(info, encounterID)
 end
 
 local function OnDropUpdate(encounterID, lootListKey)
@@ -557,8 +644,14 @@ local function OnDropUpdate(encounterID, lootListKey)
     end
     printedDrops[key] = true
     printedCount = printedCount + 1
-    RenderDrop(info, encounterID)
-    Announce(info)
+    if AnnounceActive() and C_Timer and C_Timer.After then
+        -- random delay so that group members' addons do not all announce at the same moment
+        C_Timer.After(ANNOUNCE_DELAY_MIN + math.random() * (ANNOUNCE_DELAY_MAX - ANNOUNCE_DELAY_MIN), function()
+            ProcessDrop(info, encounterID)
+        end)
+    else
+        ProcessDrop(info, encounterID)
+    end
 end
 
 -- After /reload (or logging in mid-dungeon) the loot history already exists: mark finished
@@ -917,7 +1010,9 @@ local function RegisterPanel()
         return container:GetData()
     end
     Settings.CreateDropdown(category, announceSetting, AnnounceOptions,
-        "Optionally tells your group who won. Off by default. Not sent while the game restricts addon chat (e.g. during boss fights).")
+        "Optionally tells your group who won. Off by default. Not sent while the game restricts addon chat (e.g. during boss fights). Waits a random moment and does not repeat a line another player's addon already sent.")
+    AddBool("hideWhenAnnounced", "Hide my roll block when announced",
+        "Only with announcements on: if the result was announced in group chat (by you or another player), your own detailed block is not printed again.")
 
     -- What to show
     local rollsInit = AddBool("rolls", "Show other players' rolls",
@@ -986,7 +1081,15 @@ f:SetScript("OnEvent", function(_, event, arg1, arg2)
         else
             f:RegisterEvent("CHAT_MSG_LOOT") -- fallback: assemble rolls from chat messages
         end
+        for _, e in ipairs({ "CHAT_MSG_PARTY", "CHAT_MSG_PARTY_LEADER", "CHAT_MSG_RAID", "CHAT_MSG_RAID_LEADER",
+            "CHAT_MSG_INSTANCE_CHAT", "CHAT_MSG_INSTANCE_CHAT_LEADER" }) do
+            f:RegisterEvent(e) -- to see announcements made by other players
+        end
         EnsureLootGroup()
+    elseif event == "CHAT_MSG_PARTY" or event == "CHAT_MSG_PARTY_LEADER" or event == "CHAT_MSG_RAID"
+        or event == "CHAT_MSG_RAID_LEADER" or event == "CHAT_MSG_INSTANCE_CHAT"
+        or event == "CHAT_MSG_INSTANCE_CHAT_LEADER" then
+        OnGroupChat(arg1, arg2)
     elseif event == "LOOT_HISTORY_UPDATE_DROP" then
         OnDropUpdate(arg1, arg2)
     elseif event == "CHAT_MSG_LOOT" then

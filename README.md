@@ -27,7 +27,7 @@ Made for **WoW Forever** (Midnight engine, Interface `16001`).
 - **Class colors** - names are colored by class: your custom palette if you use one (EllesmereUI or the ClassColors addon), Blizzard's standard class colors otherwise. No other addon is required.
 - **Grouped by boss** - the boss name is printed once above the items of one kill.
 - **Impossible Need rolls flagged** - a Need roll on armor the class cannot wear (e.g. plate for a mage) is marked in red. Weapons and jewelry are never flagged.
-- **Optional group announcement** - off by default; send only your own wins, or all results, to party/raid chat.
+- **Optional group announcement** - off by default; send only your own wins, or all results, to party/raid chat. It waits a random moment and never repeats a line another player's addon already sent; an announced result is not printed again as your own block (option).
 - **Compact layout** - on a narrow chat window the block uses smaller indents and shortens long names; automatic, or force it in the settings.
 - **Full player links** - names are real `Name-Realm` player links (the realm is not displayed), so chat addons can color and whisper them.
 - **Original lines mode** - `raw` format keeps Blizzard's own roll messages, just filtered by type.
@@ -49,7 +49,7 @@ Everything is configured in the game's settings panel: `Esc > Options > AddOns >
 - show who won
 - hide other loot messages in that window
 - group by boss, flag impossible Need rolls
-- announce to group chat: off / only my wins / all results (off by default)
+- announce to group chat: off / only my wins / all results (off by default), and hide your own block when announced
 - class colors on names
 - addon name in front of each item line (on/off)
 - layout: automatic / normal / compact (for small chat windows)

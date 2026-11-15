@@ -1,5 +1,10 @@
 # Changelog
 
+## 4.4.1
+
+- Group announcements are now polite: they wait a random 2-7 seconds after the roll ends, and nothing is sent if another player's addon already announced the same item and winner.
+- New option *Hide my roll block when announced* (on by default, only matters when announcements are on): a result that was announced in group chat is not printed again as your own block.
+
 ## 4.4.0
 
 - Group by boss: the boss name is printed once above the items of one kill (option, on by default).
