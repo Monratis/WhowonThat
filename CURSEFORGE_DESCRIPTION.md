@@ -19,7 +19,7 @@ For every item you get one short block once the roll is finished:
 - **Pick the chat window** - choose among the chat windows you actually have, e.g. your party/dungeon tab. Other windows are never touched, and other loot messages are hidden in the chosen one.
 - **Detail level** - everyone's rolls, winner and Need/Greed only, or the winner only.
 - **Impossible Need rolls flagged** - a Need roll on armor the class cannot wear (e.g. plate for a mage) gets a red X at the end of its line, also when that player won. Weapons and jewelry are never flagged.
-- **Optional group announcement** - off by default; send only your own wins, or all results, to party/raid chat. It waits a random moment, never repeats a line another player's addon already sent, and an announced result is not printed again as your own block (option).
+- **Optional group announcement** - off by default; send only your own wins, or all results, to party/raid chat. It posts the same block you see (item, winner, rolls, who passed) with raid markers, waits a random moment, never repeats an item another player's addon already posted, and an announced result is not printed again as your own block (option).
 - **Class colors** - names are colored by class: your custom palette if you use one (EllesmereUI or the ClassColors addon), Blizzard's standard colors otherwise. No other addon needed.
 - **Compact layout** - on a narrow chat window it uses smaller indents and shortens long names (automatic, or choose in the settings).
 - **Real player links** - names are full Name-Realm links (the realm is not shown), so other chat addons can color, whisper and inspect them.

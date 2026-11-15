@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.6.0
+
+- Group announcements now post the same structure as your own block: boss line (once per kill), item, winner, everyone's rolls and who passed. They follow the Detail setting and flag impossible Need rolls.
+- Raid markers stand in for colors and icons (gold star winner, orange Need, blue Greed, grey moon pass, red X cannot use), because group chat accepts neither color codes nor custom icons.
+- Lines go out one at a time with a short pause, from one queue shared by all items, and stop if the game restricts addon chat.
+- Detecting "someone already announced this" now works on the first line of a block, so two copies of the same item in one kill are handled correctly, and your own lines are never counted as someone else's.
+
 ## 4.5.1
 
 - Fixed: opening the chat window list could permanently change your saved chat window to window 1 when the saved window was not shown at that moment. Your choice is now never overwritten; the main window is used until the saved one is back.

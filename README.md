@@ -27,7 +27,7 @@ Made for **WoW Forever** (Midnight engine, Interface `16001`).
 - **Pick the chat window** - choose among the chat windows you actually have, e.g. your party/dungeon tab. Other windows are never touched, and other loot messages are hidden in the chosen one.
 - **Detail level** - everyone's rolls, winner and Need/Greed only, or the winner only.
 - **Impossible Need rolls flagged** - a Need roll on armor the class cannot wear (e.g. plate for a mage) gets a red X at the end of its line (also when that player won). Weapons and jewelry are never flagged.
-- **Optional group announcement** - off by default; send only your own wins, or all results, to party/raid chat. It waits a random moment and never repeats a line another player's addon already sent; an announced result is not printed again as your own block (option).
+- **Optional group announcement** - off by default; send only your own wins, or all results, to party/raid chat. It posts the same block you see (item, winner, rolls, who passed) with raid markers, one line at a time. It waits a random moment and never repeats an item another player's addon already posted; an announced result is not printed again as your own block (option).
 - **Class colors** - names are colored by class: your custom palette if you use one (EllesmereUI or the ClassColors addon), Blizzard's standard class colors otherwise. No other addon is required.
 - **Compact layout** - on a narrow chat window the block uses smaller indents and shortens long names; automatic, or force it in the settings.
 - **Full player links** - names are real `Name-Realm` player links (the realm is not displayed), so chat addons can color and whisper them.

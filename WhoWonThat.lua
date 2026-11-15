@@ -458,6 +458,7 @@ end
 
 -- Name of the encounter (boss) a drop belongs to, from the game's loot history. Nil if unknown.
 local lastEncounterKey
+local lastAnnouncedBoss -- same idea for the boss line of group announcements
 local lastTitleAt = 0
 local TITLE_PAUSE = 30 -- seconds without a block after which the title is printed again (no boss data)
 local function EncounterName(encounterID)
@@ -629,14 +630,21 @@ local function RenderDrop(info, encounterID)
 end
 
 -- ===== Optional group announcement =====
--- Anyone using this addon with announcements on could send the same line, so:
+-- The group gets the same structure as the block in your own chat (item, winner, everyone else's rolls, who
+-- passed), as plain text and respecting the Detail setting. Anyone using this addon with announcements on
+-- could send the same block, so:
 --  * we wait a random moment after the roll ends (the first client to wake up announces),
---  * if a line for the same item and winner already appeared in group chat, we do not send another,
+--  * if another player's block for the same item already appeared in group chat, we do not send ours,
 --  * a result that was announced is not printed again as our own block (option, on by default).
-local ANNOUNCE_PREFIX = "Who Won That: "
+local ANNOUNCE_PREFIX = "Who Won That: "           -- starts the first line of every block: [Item]
+local ANNOUNCE_BOSS_PREFIX = "Who Won That - Loot from: "
+-- Group chat cannot carry colors or custom icons, but it accepts the raid target markers. Their own colors
+-- echo the block in your chat: gold star = winner, orange = Need, blue = Greed, grey moon = pass, red X = cannot use.
+local MARK = { winner = "{rt1}", need = "{rt2}", greed = "{rt6}", pass = "{rt5}", cantUse = "{rt7}" }
 local ANNOUNCE_DELAY_MIN, ANNOUNCE_DELAY_MAX = 2, 7 -- seconds
 local ANNOUNCE_MEMORY = 120 -- seconds an announcement is remembered
-local announcedAt = {}      -- ["itemID:Winner"] = time
+local SEND_INTERVAL = 0.5   -- seconds between two lines (keeps clear of the chat flood limit)
+local announcedAt = {}      -- [itemID] = { time, time, ... } one entry per block seen from other players
 
 local function AnnounceActive()
     return db and (db.announce == "mine" or db.announce == "all")
@@ -646,21 +654,22 @@ local function ItemIDOf(link)
     return type(link) == "string" and link:match("item:(%d+)") or nil
 end
 
-local function AnnounceKey(itemID, winnerShort)
-    return itemID .. ":" .. winnerShort
-end
-
-local function RememberAnnouncement(key)
+local function PruneAnnouncements()
     local now = GetTime()
-    for k, t in pairs(announcedAt) do
-        if now - t > ANNOUNCE_MEMORY then
-            announcedAt[k] = nil
+    for id, list in pairs(announcedAt) do
+        for i = #list, 1, -1 do
+            if now - list[i] > ANNOUNCE_MEMORY then
+                table.remove(list, i)
+            end
+        end
+        if #list == 0 then
+            announcedAt[id] = nil
         end
     end
-    announcedAt[key] = now
 end
 
--- Group chat line from another player (or from us): remember who announced what.
+-- Group chat line from another player: the first line of a block names the item, so remember it.
+-- Our own lines are ignored (they would otherwise count as someone else's block).
 local function OnGroupChat(msg, sender)
     if type(msg) ~= "string" or (issecretvalue and (issecretvalue(msg) or issecretvalue(sender))) then
         return
@@ -668,48 +677,150 @@ local function OnGroupChat(msg, sender)
     if msg:sub(1, #ANNOUNCE_PREFIX) ~= ANNOUNCE_PREFIX then
         return
     end
-    local who = msg:match("^Who Won That: (%S+) won ")
     local itemID = ItemIDOf(msg)
-    if not who or not itemID then
+    if not itemID then
         return
     end
-    if who == "I" then
-        who = ShortName(type(sender) == "string" and sender or "")
+    if type(sender) == "string" and ShortName(sender) == UnitName("player") then
+        return
     end
-    if who ~= "" then
-        RememberAnnouncement(AnnounceKey(itemID, who))
+    PruneAnnouncements()
+    local list = announcedAt[itemID]
+    if not list then
+        list = {}
+        announcedAt[itemID] = list
     end
+    list[#list + 1] = GetTime()
 end
 
-local function DropAnnounceKey(info)
-    local winner = info.winner
-    local itemID = ItemIDOf(info.itemHyperlink)
-    if info.allPassed or type(winner) ~= "table" or not itemID or not UsableName(winner.playerName) then
-        return nil
-    end
-    return AnnounceKey(itemID, ShortName(winner.playerName))
-end
-
+-- True if another player already announced a block for this item. Each seen block covers one drop, so
+-- two copies of the same item in one kill are handled correctly.
 local function AlreadyAnnounced(info)
-    local key = DropAnnounceKey(info)
-    local t = key and announcedAt[key]
-    return t ~= nil and GetTime() - t <= ANNOUNCE_MEMORY
+    local itemID = ItemIDOf(info.itemHyperlink)
+    PruneAnnouncements()
+    local list = itemID and announcedAt[itemID]
+    if list and #list > 0 then
+        table.remove(list, 1)
+        return true
+    end
+    return false
 end
 
--- Sends the announcement. Returns true if a line was sent. Not sent while the game restricts addon chat
--- (e.g. during encounters) or when you are not in a group.
-local function Announce(info)
-    local mode = db.announce
-    local key = DropAnnounceKey(info)
-    local winner = info.winner
-    if (mode ~= "mine" and mode ~= "all") or not key then
-        return false
+-- The plain-text block, same structure as RenderDrop: item, winner, others by roll, who passed.
+local function AnnounceLines(info, encounterID)
+    local item = info.itemHyperlink
+    local lines = {}
+
+    local bossName, bossKey
+    if db.byBoss then
+        bossName, bossKey = EncounterName(encounterID)
     end
-    if mode == "mine" and not winner.isSelf then
+    if bossName and bossKey ~= lastAnnouncedBoss then
+        lastAnnouncedBoss = bossKey
+        lines[#lines + 1] = ANNOUNCE_BOSS_PREFIX .. bossName
+    end
+
+    lines[#lines + 1] = ANNOUNCE_PREFIX .. item
+    if info.allPassed then
+        lines[#lines + 1] = MARK.pass .. " Nobody wanted it (everyone passed)"
+        return lines
+    end
+
+    local function Flag(r, st)
+        if db.flagUnusable and st.kind == "need" and not CanClassUse(r.playerClass, item) then
+            return " " .. MARK.cantUse .. " can't use"
+        end
+        return ""
+    end
+    local function Detail(r, st)
+        return " (" .. st.label .. (r.roll and (" " .. r.roll) or "") .. ")" .. Flag(r, st)
+    end
+
+    local winner = info.winner
+    local others, passers = {}, {}
+    if db.rolls then
+        for _, r in ipairs(info.rollInfos or {}) do
+            local st = STATE_INFO[r.state]
+            if st and UsableName(r.playerName) and db[st.kind] and not (r.isWinner and db.wins) then
+                if st.kind == "pass" then
+                    passers[#passers + 1] = ShortName(r.playerName)
+                else
+                    others[#others + 1] = { r = r, st = st }
+                end
+            end
+        end
+        table.sort(others, function(x, y)
+            local rx, ry = x.r.roll or -1, y.r.roll or -1
+            if rx ~= ry then return rx > ry end
+            return x.r.playerName < y.r.playerName
+        end)
+    end
+
+    if db.wins and type(winner) == "table" and UsableName(winner.playerName) then
+        local wst = STATE_INFO[winner.state]
+        lines[#lines + 1] = MARK.winner .. " " .. ShortName(winner.playerName) .. " WON"
+            .. (wst and Detail(winner, wst) or "")
+    end
+    for _, o in ipairs(others) do
+        lines[#lines + 1] = (MARK[o.st.kind] or "-") .. " " .. ShortName(o.r.playerName) .. Detail(o.r, o.st)
+    end
+    if #passers > 0 then
+        lines[#lines + 1] = MARK.pass .. " Passed: " .. table.concat(passers, ", ")
+    end
+    return lines
+end
+
+-- Lines go out one at a time with a pause between them, from one queue shared by all drops.
+local sendQueue, sending = {}, false
+local function PumpQueue()
+    local entry = table.remove(sendQueue, 1)
+    if not entry then
+        sending = false
+        return
+    end
+    local locked = C_ChatInfo and C_ChatInfo.InChatMessagingLockdown and C_ChatInfo.InChatMessagingLockdown()
+    if not locked then
+        entry.send(entry.text, entry.channel)
+    end
+    if #sendQueue > 0 and C_Timer and C_Timer.After then
+        C_Timer.After(SEND_INTERVAL, PumpQueue)
+    elseif #sendQueue > 0 then
+        PumpQueue()
+    else
+        sending = false
+    end
+end
+
+local function Enqueue(lines, channel, send)
+    for _, text in ipairs(lines) do
+        sendQueue[#sendQueue + 1] = { text = text, channel = channel, send = send }
+    end
+    if not sending then
+        sending = true
+        PumpQueue()
+    end
+end
+
+-- Announces the block. Returns true if it was queued. Nothing is sent while the game restricts addon chat
+-- (e.g. during encounters) or when you are not in a group.
+local function Announce(info, encounterID)
+    local mode = db.announce
+    local winner = info.winner
+    if mode ~= "mine" and mode ~= "all" then
         return false
     end
     local item = info.itemHyperlink
-    if type(item) ~= "string" or (issecretvalue and issecretvalue(item)) then
+    if type(item) ~= "string" or (issecretvalue and issecretvalue(item)) or not ItemIDOf(item) then
+        return false
+    end
+    if not info.allPassed then
+        if type(winner) ~= "table" or not UsableName(winner.playerName) then
+            return false
+        end
+        if mode == "mine" and not winner.isSelf then
+            return false
+        end
+    elseif mode == "mine" then
         return false
     end
     if C_ChatInfo and C_ChatInfo.InChatMessagingLockdown and C_ChatInfo.InChatMessagingLockdown() then
@@ -729,11 +840,7 @@ local function Announce(info)
     if not send then
         return false
     end
-    local st = STATE_INFO[winner.state]
-    local detail = st and (" (" .. st.label .. (winner.roll and (" " .. winner.roll) or "") .. ")") or ""
-    local who = winner.isSelf and "I" or ShortName(winner.playerName)
-    RememberAnnouncement(key)
-    send(ANNOUNCE_PREFIX .. who .. " won " .. item .. detail, channel)
+    Enqueue(AnnounceLines(info, encounterID), channel, send)
     return true
 end
 
@@ -745,7 +852,7 @@ local function ProcessDrop(info, encounterID)
     end
     local announced = false
     if AnnounceActive() then
-        announced = AlreadyAnnounced(info) or Announce(info)
+        announced = AlreadyAnnounced(info) or Announce(info, encounterID)
     end
     if announced and db.hideWhenAnnounced then
         return
@@ -1162,10 +1269,10 @@ local function RegisterPanel()
     Header("Group chat")
 
     local announceInit = AddChoice("announce", "Announce results",
-        "Tells your group who won. Not sent while the game restricts addon chat. Waits a random moment and never repeats a line another player's addon already sent.", {
+        "Posts the roll results to your group in the same structure as your own block. Not sent while the game restricts addon chat. Waits a random moment and does not post an item another player's addon already posted.", {
             { "off", "Off", "Nothing is sent to other players." },
-            { "mine", "Only my wins", "One line to party/raid chat when you win an item." },
-            { "all", "All results", "One line per item. If several group members use this, expect duplicates only when they announce at the same moment." },
+            { "mine", "Only my wins", "When you win an item, the same block you see (item, winner, rolls) goes to party/raid chat, with raid markers for the colors." },
+            { "all", "All results", "The block for every item goes to party/raid chat. Follows the Detail setting. Duplicates are only possible if two members announce at the very same moment." },
         })
     local hideInit = AddBool("hideWhenAnnounced", "Hide my block when announced",
         "If the result was announced in group chat (by you or another player), your own detailed block is not printed again.")
