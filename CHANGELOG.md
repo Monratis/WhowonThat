@@ -1,5 +1,9 @@
 # Changelog
 
+## 4.0.2
+
+- EllesmereUI declared as an optional dependency (its class colors are used when installed).
+
 ## 4.0.1
 
 - First public release (packaging and CI fixes on top of 4.0).

@@ -29,6 +29,10 @@ Made for **WoW Forever** (Midnight engine, Interface `16001`).
 - **Original lines mode** - `raw` format keeps Blizzard's own roll messages, just filtered by type.
 - Uses the game's loot history (`C_LootHistory`) and falls back to parsing chat messages if it is unavailable.
 
+## Optional dependency
+
+[EllesmereUI](https://www.curseforge.com/wow/addons/ellesmereui) - if installed, its class colors are used for player names. Not required.
+
 ## Installation
 
 - **CurseForge / addon manager** - install *Who Won That*.
