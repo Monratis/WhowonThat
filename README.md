@@ -46,6 +46,7 @@ Everything is configured in the game's settings panel: `Esc > Options > AddOns >
 - show who won
 - hide other loot messages in that window
 - class colors on names
+- addon name in front of each item line (on/off)
 - layout: automatic / normal / compact (for small chat windows)
 - a *Print sample roll* button to preview the output
 

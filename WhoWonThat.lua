@@ -17,6 +17,7 @@ local DEFAULTS = {
     wins = true,        -- show who won / that everyone passed
     hideOthers = true,  -- hide other loot messages in that window (picked up items etc.)
     classColors = true, -- color names by class (custom palette if present, else Blizzard colors)
+    header = true,      -- put the addon name in front of each item line
     layout = "auto",    -- "auto" = compact on a narrow chat window, "normal", or "compact"
 }
 
@@ -332,6 +333,14 @@ local function Truncate(name, max)
     return table.concat(chars, "", 1, max - 2) .. ".."
 end
 
+-- "Who Won That  [Item]" - the addon name in front of the item (short "WWT" on a narrow window)
+local function ItemLine(item, compact)
+    if not db.header then
+        return item
+    end
+    return "|cff58c6fa" .. (compact and "WWT" or "Who Won That") .. "|r  " .. item
+end
+
 -- Prints the summary of one item (data from C_LootHistory) on several lines:
 --   [Item]
 --      [crown] Winner  WON  [dice] Need 74
@@ -348,7 +357,7 @@ local function RenderDrop(info)
     end
     if info.allPassed then
         if db.wins then
-            Emit(frame, item, "LOOT")
+            Emit(frame, ItemLine(item, IsCompact(frame)), "LOOT")
             Emit(frame, (IsCompact(frame) and "  " or "     ") .. "|cffaaaaaaNobody wanted it (everyone passed)|r", "LOOT")
         end
         return
@@ -386,7 +395,7 @@ local function RenderDrop(info)
         return compact and Truncate(short, COMPACT_NAME_LENGTH) or short
     end
 
-    Emit(frame, item, "LOOT")
+    Emit(frame, ItemLine(item, compact), "LOOT")
     if showWinner then
         local line = indentWinner .. ICON_CROWN .. " "
             .. PlayerLink(winner.playerName, ShortName(winner.playerName), winner.playerClass, Display(winner.playerName))
@@ -788,6 +797,8 @@ local function RegisterPanel()
         "The roll winner, and a note when everyone passed.")
     AddBool("hideOthers", "Hide other loot in that window",
         "Hides messages about picked up, crafted, quest and master-looter items etc.")
+    AddBool("header", "Show addon name",
+        "Puts \"Who Won That\" in front of each item line so you can tell where the block comes from.")
     AddBool("classColors", "Class colors on names",
         "Colors player names by class, using your custom class colors if you have them (e.g. EllesmereUI), otherwise the standard ones.")
 

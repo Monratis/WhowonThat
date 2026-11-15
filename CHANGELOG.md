@@ -1,5 +1,9 @@
 # Changelog
 
+## 4.3.1
+
+- The item line now starts with the addon name ("Who Won That", "WWT" on a narrow window). Can be turned off with the new *Show addon name* option.
+
 ## 4.3.0
 
 - New Layout setting (Automatic / Normal / Compact): on a narrow chat window the block uses smaller indents and shortens long names.
