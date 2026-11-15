@@ -1,5 +1,9 @@
 # Changelog
 
+## 4.0.1
+
+- First public release (packaging and CI fixes on top of 4.0).
+
 ## 4.0
 
 - First public release.
