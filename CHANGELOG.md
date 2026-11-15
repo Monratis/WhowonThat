@@ -1,5 +1,10 @@
 # Changelog
 
+## 4.1.0
+
+- `/wwt` now opens the settings panel; `/wwt help` lists the chat commands.
+- Settings panel: added Disenchant toggle and buttons for the sample roll and the command list, so everything is available in the UI.
+
 ## 4.0.2
 
 - EllesmereUI declared as an optional dependency (its class colors are used when installed).

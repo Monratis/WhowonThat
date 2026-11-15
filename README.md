@@ -45,8 +45,8 @@ Made for **WoW Forever** (Midnight engine, Interface `16001`).
 
 | Command | What it does |
 | --- | --- |
-| `/wwt` | Show current settings and the command list |
-| `/wwt config` | Open the settings panel |
+| `/wwt` | Open the settings panel (every setting is in the panel) |
+| `/wwt help` | Show current settings and the command list |
 | `/wwt list` | List chat windows with their numbers |
 | `/wwt frame <number or name>` | Choose the window that shows rolls (default: window 1) |
 | `/wwt format summary` / `raw` | Readable block per item, or Blizzard's original lines |

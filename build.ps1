@@ -16,7 +16,7 @@ $scriptDir = $PSScriptRoot
 if (-not $scriptDir) { $scriptDir = Get-Location }
 
 $tocPath = Join-Path $scriptDir "WhoWonThat.toc"
-$version = "4.0.2"
+$version = "4.1.0"
 
 if (Test-Path $tocPath) {
     $match = Select-String -Path $tocPath -Pattern '## Version:\s*(.+)' | Select-Object -First 1

@@ -532,7 +532,7 @@ end
 
 local function Help()
     Status()
-    Print("/wwt config - open the settings panel (Esc > Options > AddOns > Who Won That)")
+    Print("/wwt - open the settings panel (Esc > Options > AddOns > Who Won That); everything below is also in the panel")
     Print("/wwt test - print a sample roll to the chosen window and check message recognition")
     Print("/wwt list - list chat windows with their numbers")
     Print("/wwt frame <number or name> - where to show rolls and winners")
@@ -661,18 +661,31 @@ local function RunTest()
     Print(problems == 0 and "TEST finished: everything recognized." or ("TEST finished: problems: " .. problems))
 end
 
+-- Opens Esc > Options > AddOns > Who Won That. Returns false if the panel is unavailable.
+local function OpenPanel()
+    if settingsCategory and Settings and Settings.OpenToCategory then
+        Settings.OpenToCategory(settingsCategory:GetID())
+        return true
+    end
+    return false
+end
+
 local function HandleSlash(input)
     local cmd, rest = (input or ""):match("^%s*(%S*)%s*(.-)%s*$")
     cmd = (cmd or ""):lower()
     rest = rest or ""
-    if cmd == "" or cmd == "help" or cmd == "status" then
+    if cmd == "" then
+        -- plain /wwt opens the settings panel
+        if not OpenPanel() then
+            Print("The settings panel is not available in this game version.")
+            Help()
+        end
+    elseif cmd == "help" or cmd == "status" then
         Help()
     elseif cmd == "test" then
         RunTest()
     elseif cmd == "config" or cmd == "options" or cmd == "ui" then
-        if settingsCategory and Settings and Settings.OpenToCategory then
-            Settings.OpenToCategory(settingsCategory:GetID())
-        else
+        if not OpenPanel() then
             Print("The settings panel is not available in this game version - use the /wwt commands.")
         end
     elseif cmd == "list" then
@@ -806,6 +819,7 @@ local function RegisterPanel()
     Child("need", "Need", "Show Need rolls.")
     Child("greed", "Greed", "Show Greed rolls.")
     Child("transmog", "Transmog", "Show Transmog rolls.")
+    Child("de", "Disenchant", "Show Disenchant rolls (only in the \"Original lines\" format, if the game has them).")
     Child("pass", "Pass", "Show players who passed.")
     AddBool("wins", "Show who won",
         "The roll winner, and a note when everyone passed.")
@@ -813,6 +827,20 @@ local function RegisterPanel()
         "Hides messages about picked up, crafted, quest and master-looter items etc.")
     AddBool("classColors", "Class colors on names",
         "Colors player names by class. If EllesmereUI is installed its class colors are used.")
+
+    -- Buttons: sample roll and command list
+    local SettingsPanelRef = _G.SettingsPanel
+    if CreateSettingsButtonInitializer and SettingsPanelRef and SettingsPanelRef.GetLayout then
+        local layout = SettingsPanelRef:GetLayout(category)
+        if layout and layout.AddInitializer then
+            layout:AddInitializer(CreateSettingsButtonInitializer("Test",
+                "Print sample roll", RunTest,
+                "Prints a sample roll to the chosen chat window and checks that the game's roll messages are recognized.", true))
+            layout:AddInitializer(CreateSettingsButtonInitializer("Chat commands",
+                "Show commands", Help,
+                "Lists the /wwt chat commands. Every setting is also available in this panel.", true))
+        end
+    end
 
     Settings.RegisterAddOnCategory(category)
 end

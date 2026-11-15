@@ -23,12 +23,12 @@ For every item you get one short block once the roll is finished:
 
 ## Setup
 
-Esc > Options > AddOns > **Who Won That**, or type `/wwt`.
+Esc > Options > AddOns > **Who Won That**, or type `/wwt`. Every setting is in the panel; chat commands are optional (`/wwt help`).
 
 | Command | Does |
 | --- | --- |
-| `/wwt` | current settings + command list |
-| `/wwt config` | open the settings panel |
+| `/wwt` | open the settings panel |
+| `/wwt help` | current settings + command list |
 | `/wwt list` | list chat windows |
 | `/wwt frame <number or name>` | choose the window |
 | `/wwt format summary` / `raw` | readable block / Blizzard's lines |
