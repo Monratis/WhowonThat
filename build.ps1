@@ -65,8 +65,8 @@ Copy-Item -Path $versionZip -Destination $latestZip -Force
 # Czyszczenie katalogu staging
 Remove-Item -Recurse -Force $stageDir
 
-Write-Host "`nSukces! Utworzono archiwa dla World of Warcraft:" -ForegroundColor Green
+Write-Host "`nSukces! Utworzono archiwa dla WoW Forever:" -ForegroundColor Green
 Write-Host "  - $versionZip" -ForegroundColor Yellow
 Write-Host "  - $latestZip" -ForegroundColor Yellow
 Write-Host "`nAby zainstalowac: wypakuj zawartosc ZIP bezposrednio do folderu:" -ForegroundColor Gray
-Write-Host "  World of Warcraft\_retail_\Interface\AddOns\`n" -ForegroundColor Gray
+Write-Host "  <Katalog WoW Forever>\Interface\AddOns\`n" -ForegroundColor Gray

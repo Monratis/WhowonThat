@@ -4,7 +4,7 @@
 
 # Who Won That
 
-**Who Won That** is a World of Warcraft addon that cleans up and consolidates loot rolls and results in your chat window. Instead of cluttering your chat frame with dozens of individual roll notifications, it gathers roll information and displays a single, clean, readable summary per item upon roll completion.
+**Who Won That** is an addon created for **WoW Forever** (Midnight engine, Interface `16001`) that cleans up and consolidates loot rolls and results in your chat window. Instead of cluttering your chat frame with dozens of individual roll notifications, it gathers roll information and displays a single, clean, readable summary per item upon roll completion.
 
 ## Features
 
@@ -14,7 +14,7 @@
 - **Target Chat Frame**: Route rolls and win summaries to a designated chat tab or window (e.g. Chat Frame 4 for Dungeons/Party) while keeping your main chat clean.
 - **Granular Filtering**: Toggle Need, Greed, Transmog, Disenchant, and Pass visibility individually.
 - **Loot Suppression**: Option to hide non-roll loot clutter (crafted items, quest rewards, normal drops) in the designated chat frame.
-- **Retail & C_LootHistory Integration**: Leverages modern WoW loot history APIs with automatic chat-parsing fallback.
+- **WoW Forever & C_LootHistory Integration**: Leverages the Midnight engine loot history APIs (`C_LootHistory`) with automatic chat-parsing fallback.
 
 ## In-Game Configuration
 
@@ -38,11 +38,11 @@ Or use slash commands:
 
 ## Installation
 
-1. Download or clone this repository.
-2. Place the `WhoWonThat` folder into your World of Warcraft directory:
-   `World of Warcraft\_retail_\Interface\AddOns\WhoWonThat\`
+1. Download or clone this repository (or download the pre-packaged zip from Releases / `dist/`).
+2. Place the `WhoWonThat` folder into your WoW Forever directory:
+   `<WoW Forever>\Interface\AddOns\WhoWonThat\`
    *(Ensure `WhoWonThat.toc` and `WhoWonThat.lua` are directly inside the `WhoWonThat` folder)*
-3. Restart or reload World of Warcraft (`/reload`).
+3. Restart the game or reload UI (`/reload`).
 
 ## License
 
