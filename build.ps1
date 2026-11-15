@@ -1,9 +1,9 @@
 <#
 .SYNOPSIS
-    Buduje i paczkuje dodatek WhoWonThat do archiwum .zip gotowego dla World of Warcraft.
+    Builds the WhoWonThat addon into a .zip ready to install in World of Warcraft.
 .DESCRIPTION
-    Skrypt odczytuje wersje z pliku WhoWonThat.toc, tworzy poprawna strukture katalogu
-    WhoWonThat/ i pakuje go do plikow dist/WhoWonThat-v<wersja>.zip oraz dist/WhoWonThat.zip.
+    Reads the version from WhoWonThat.toc, creates the correct WhoWonThat/ folder structure
+    and packs it into dist/WhoWonThat-v<version>.zip and dist/WhoWonThat.zip.
 #>
 
 param(
@@ -16,7 +16,7 @@ $scriptDir = $PSScriptRoot
 if (-not $scriptDir) { $scriptDir = Get-Location }
 
 $tocPath = Join-Path $scriptDir "WhoWonThat.toc"
-$version = "4.1.0"
+$version = "4.1.1"
 
 if (Test-Path $tocPath) {
     $match = Select-String -Path $tocPath -Pattern '## Version:\s*(.+)' | Select-Object -First 1
@@ -31,15 +31,15 @@ $stageDir = Join-Path $outDir $addonName
 $versionZip = Join-Path $outDir "$addonName-v$version.zip"
 $latestZip = Join-Path $outDir "$addonName.zip"
 
-Write-Host "Budowanie dodatku $addonName (wersja $version)..." -ForegroundColor Cyan
+Write-Host "Building addon $addonName (version $version)..." -ForegroundColor Cyan
 
-# Przygotowanie folderu wyjsciowego
+# Prepare the output folder
 if (Test-Path $stageDir) {
     Remove-Item -Recurse -Force $stageDir
 }
 New-Item -ItemType Directory -Force -Path $stageDir | Out-Null
 
-# Kopiowanie plikow dodatku
+# Copy the addon files
 $filesToInclude = @(
     "WhoWonThat.toc",
     "WhoWonThat.lua",
@@ -56,19 +56,19 @@ foreach ($file in $filesToInclude) {
     }
 }
 
-# Usuwanie starych archiwow
+# Remove old archives
 if (Test-Path $versionZip) { Remove-Item -Force $versionZip }
 if (Test-Path $latestZip) { Remove-Item -Force $latestZip }
 
-# Tworzenie archiwum ZIP ze sciezka glowna WhoWonThat/...
+# Create the ZIP with WhoWonThat/ as the root folder
 Compress-Archive -Path $stageDir -DestinationPath $versionZip
 Copy-Item -Path $versionZip -Destination $latestZip -Force
 
-# Czyszczenie katalogu staging
+# Clean up the staging folder
 Remove-Item -Recurse -Force $stageDir
 
-Write-Host "`nSukces! Utworzono archiwa dla WoW Forever:" -ForegroundColor Green
+Write-Host "`nDone! Created archives for WoW Forever:" -ForegroundColor Green
 Write-Host "  - $versionZip" -ForegroundColor Yellow
 Write-Host "  - $latestZip" -ForegroundColor Yellow
-Write-Host "`nAby zainstalowac: wypakuj zawartosc ZIP bezposrednio do folderu:" -ForegroundColor Gray
-Write-Host "  <Katalog WoW Forever>\Interface\AddOns\`n" -ForegroundColor Gray
+Write-Host "`nTo install: extract the ZIP directly into:" -ForegroundColor Gray
+Write-Host "  <WoW Forever folder>\Interface\AddOns\`n" -ForegroundColor Gray

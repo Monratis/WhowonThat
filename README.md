@@ -22,7 +22,7 @@ Made for **WoW Forever** (Midnight engine, Interface `16001`).
 
 - **Readable roll summary** - winner first with a crown icon, everyone else sorted by roll.
 - **Choose the window** - send rolls to e.g. your party/dungeon tab; other chat windows are not touched.
-- **Per-type filters** - show only Need, Greed, Transmog and/or Pass; show/hide winners.
+- **Per-type filters** - show only Need, Greed and/or Pass; show/hide winners.
 - **Less loot spam** - optionally hide the rest of the loot messages (picked up, crafted, quest...) in that window.
 - **Class colors** - uses EllesmereUI's class colors when installed, Blizzard's otherwise.
 - **Full player links** - names are real `Name-Realm` player links (the realm is not displayed), so chat addons can color and whisper them.
@@ -51,8 +51,8 @@ Made for **WoW Forever** (Midnight engine, Interface `16001`).
 | `/wwt frame <number or name>` | Choose the window that shows rolls (default: window 1) |
 | `/wwt format summary` / `raw` | Readable block per item, or Blizzard's original lines |
 | `/wwt rolls on/off` | Show other players' rolls |
-| `/wwt need/greed/transmog/pass on/off` | Toggle a single roll type |
-| `/wwt only need` (or greed/transmog/pass) | Show only that roll type |
+| `/wwt need/greed/pass on/off` | Toggle a single roll type |
+| `/wwt only need` (or greed/pass) | Show only that roll type |
 | `/wwt all` | Show all roll types |
 | `/wwt wins on/off` | Show who won / that everyone passed |
 | `/wwt others on/off` | Hide the other loot messages in that window |

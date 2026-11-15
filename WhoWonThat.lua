@@ -13,15 +13,14 @@ local DEFAULTS = {
     need = true,        -- show Need rolls
     greed = true,       -- show Greed rolls
     de = true,          -- (raw mode only) Disenchant rolls, if the game has them
-    transmog = true,    -- show Transmog rolls
     pass = true,        -- show passes
     wins = true,        -- show who won / that everyone passed
     hideOthers = true,  -- hide other loot messages in that window (picked up items etc.)
     classColors = true, -- color names by class (EllesmereUI colors if installed)
 }
 
-local TYPE_LABEL = { need = "Need", greed = "Greed", de = "Disenchant", transmog = "Transmog", pass = "Pass" }
-local PRIORITY = { win = 1, de = 2, transmog = 2, greed = 3, need = 4, pass = 5, other = 6 }
+local TYPE_LABEL = { need = "Need", greed = "Greed", de = "Disenchant", pass = "Pass" }
+local PRIORITY = { win = 1, de = 2, greed = 3, need = 4, pass = 5, other = 6 }
 -- Forever (Midnight engine) has a loot history with structured roll data (C_LootHistory) - the main data source.
 -- Chat text parsing is only used to hide the raw lines and as a fallback.
 local HAS_HISTORY = (C_LootHistory ~= nil and C_LootHistory.GetSortedInfoForDrop ~= nil)
@@ -69,7 +68,7 @@ local function ClassifyName(name)
         return "win"
     end
     if name:find("TRANSMOG") then
-        return "transmog"
+        return "other" -- Transmog rolls are intentionally not supported
     end
     if name:find("DISENCHANT") or name:find("_DE$") or name:find("_DE_") then
         return "de"
@@ -248,7 +247,6 @@ local ROLL_STATE = (Enum and Enum.EncounterLootDropRollState)
 local STATE_INFO = {
     [ROLL_STATE.NeedMainSpec] = { kind = "need", label = "Need" },
     [ROLL_STATE.NeedOffSpec] = { kind = "need", label = "Need OS" },
-    [ROLL_STATE.Transmog] = { kind = "transmog", label = "Transmog" },
     [ROLL_STATE.Greed] = { kind = "greed", label = "Greed" },
     [ROLL_STATE.Pass] = { kind = "pass", label = "Pass" },
     -- NoRoll: the player has not chosen yet - skipped
@@ -402,7 +400,7 @@ end
 -- The data goes through the same RenderDrop, so the output looks identical.
 local KIND_TO_STATE = {
     need = ROLL_STATE.NeedMainSpec, greed = ROLL_STATE.Greed, de = ROLL_STATE.Greed,
-    transmog = ROLL_STATE.Transmog, pass = ROLL_STATE.Pass,
+    pass = ROLL_STATE.Pass,
 }
 
 local function Prune(now)
@@ -526,8 +524,8 @@ end
 local function Status()
     Print(string.format("window: %d (%s) | format: %s | rolls: %s | winners: %s | other loot hidden: %s",
         db.frame, WindowName(db.frame), db.format, OnOff(db.rolls), OnOff(db.wins), OnOff(db.hideOthers)))
-    Print(string.format("roll types: Need %s, Greed %s, Transmog %s, Pass %s | class colors: %s",
-        OnOff(db.need), OnOff(db.greed), OnOff(db.transmog), OnOff(db.pass), OnOff(db.classColors)))
+    Print(string.format("roll types: Need %s, Greed %s, Pass %s | class colors: %s",
+        OnOff(db.need), OnOff(db.greed), OnOff(db.pass), OnOff(db.classColors)))
 end
 
 local function Help()
@@ -538,8 +536,8 @@ local function Help()
     Print("/wwt frame <number or name> - where to show rolls and winners")
     Print("/wwt format summary / raw - readable block per item, or Blizzard's original lines")
     Print("/wwt rolls on/off - show other players' rolls")
-    Print("/wwt need/greed/transmog/pass on/off - single roll types")
-    Print("/wwt only need  (or greed, transmog, pass) - show only that roll type")
+    Print("/wwt need/greed/pass on/off - single roll types")
+    Print("/wwt only need  (or greed, pass) - show only that roll type")
     Print("/wwt all - show all roll types")
     Print("/wwt wins on/off - who won / everyone passed")
     Print("/wwt others on/off - hide the rest of the loot messages in that window (crafted, quest, master looter...)")
@@ -575,7 +573,7 @@ end
 local settingsCategory -- category in Esc > Options > AddOns
 
 local TYPE_ALIASES = {
-    need = "need", greed = "greed", transmog = "transmog", pass = "pass",
+    need = "need", greed = "greed", pass = "pass",
 }
 
 -- /wwt test: builds sample messages from the game's REAL strings (LOOT_ROLL_*), checks that
@@ -647,7 +645,7 @@ local function RunTest()
                     win,
                     roll("Seluna-Testrealm", "PRIEST", ROLL_STATE.Greed, 55),
                     roll("Monra-Greytusk", "MAGE", ROLL_STATE.NeedOffSpec, 31),
-                    roll("Rax-Testrealm", "ROGUE", ROLL_STATE.Transmog, 12),
+                    roll("Rax-Testrealm", "ROGUE", ROLL_STATE.Greed, 12),
                     roll("Morv-Testrealm", "HUNTER", ROLL_STATE.Pass),
                 },
             })
@@ -713,16 +711,16 @@ local function HandleSlash(input)
         wipe(items)
         Status()
     elseif cmd == "all" then
-        db.rolls, db.need, db.greed, db.de, db.transmog, db.pass = true, true, true, true, true, true
+        db.rolls, db.need, db.greed, db.de, db.pass = true, true, true, true, true
         Status()
     elseif cmd == "only" then
         local t = TYPE_ALIASES[rest:lower()]
         if not t then
-            Print("Usage: /wwt only need  (or greed, transmog, pass)")
+            Print("Usage: /wwt only need  (or greed, pass)")
             return
         end
         db.rolls = true
-        for _, key in ipairs({ "need", "greed", "transmog", "pass" }) do
+        for _, key in ipairs({ "need", "greed", "pass" }) do
             db[key] = (key == t)
         end
         Status()
@@ -809,7 +807,7 @@ local function RegisterPanel()
 
     -- What to show
     local rollsInit = AddBool("rolls", "Show other players' rolls",
-        "Who chose Need/Greed/Transmog/Pass and what they rolled.")
+        "Who chose Need/Greed/Pass and what they rolled.")
     local function Child(key, label, tooltip)
         local init = AddBool(key, label, tooltip)
         if init and init.SetParentInitializer and rollsInit then
@@ -818,7 +816,6 @@ local function RegisterPanel()
     end
     Child("need", "Need", "Show Need rolls.")
     Child("greed", "Greed", "Show Greed rolls.")
-    Child("transmog", "Transmog", "Show Transmog rolls.")
     Child("de", "Disenchant", "Show Disenchant rolls (only in the \"Original lines\" format, if the game has them).")
     Child("pass", "Pass", "Show players who passed.")
     AddBool("wins", "Show who won",

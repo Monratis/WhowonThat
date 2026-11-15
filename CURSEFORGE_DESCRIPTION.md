@@ -14,7 +14,7 @@ For every item you get one short block once the roll is finished:
 
 - **Readable roll summary** - the winner first with a crown, everyone else sorted by roll.
 - **Pick the chat window** - e.g. your party/dungeon tab. Other windows are never touched.
-- **Per-type filters** - show only Need, Greed, Transmog and/or Pass; winners on/off.
+- **Per-type filters** - show only Need, Greed and/or Pass; winners on/off.
 - **Less loot spam** - optionally hide the rest of the loot messages (picked up, crafted, quest...) in that window.
 - **Class colors** - uses EllesmereUI's class colors if installed, Blizzard's otherwise.
 - **Real player links** - names are full Name-Realm links (the realm is not shown), so other chat addons can color, whisper and inspect them.
@@ -32,7 +32,7 @@ Esc > Options > AddOns > **Who Won That**, or type `/wwt`. Every setting is in t
 | `/wwt list` | list chat windows |
 | `/wwt frame <number or name>` | choose the window |
 | `/wwt format summary` / `raw` | readable block / Blizzard's lines |
-| `/wwt need/greed/transmog/pass on/off` | toggle a roll type |
+| `/wwt need/greed/pass on/off` | toggle a roll type |
 | `/wwt only need` | show only one roll type |
 | `/wwt wins on/off` | show winners |
 | `/wwt others on/off` | hide other loot messages |
