@@ -1,5 +1,9 @@
 # Changelog
 
+## 4.2.0
+
+- Removed the chat configuration commands: all settings live in the settings panel. Remaining commands: `/wwt` (open settings), `/wwt help`, `/wwt test`.
+
 ## 4.1.1
 
 - Removed the Transmog option: Transmog rolls are no longer shown or configurable.

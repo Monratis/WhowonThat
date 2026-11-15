@@ -41,23 +41,17 @@ Made for **WoW Forever** (Midnight engine, Interface `16001`).
 
 ## Configuration
 
-`Esc > Options > AddOns > Who Won That`, or slash commands (`/wwt` or `/whowonthat`):
+Everything is configured in the game's settings panel: `Esc > Options > AddOns > Who Won That`
+(or type `/wwt` to open it). Options:
 
-| Command | What it does |
-| --- | --- |
-| `/wwt` | Open the settings panel (every setting is in the panel) |
-| `/wwt help` | Show current settings and the command list |
-| `/wwt list` | List chat windows with their numbers |
-| `/wwt frame <number or name>` | Choose the window that shows rolls (default: window 1) |
-| `/wwt format summary` / `raw` | Readable block per item, or Blizzard's original lines |
-| `/wwt rolls on/off` | Show other players' rolls |
-| `/wwt need/greed/pass on/off` | Toggle a single roll type |
-| `/wwt only need` (or greed/pass) | Show only that roll type |
-| `/wwt all` | Show all roll types |
-| `/wwt wins on/off` | Show who won / that everyone passed |
-| `/wwt others on/off` | Hide the other loot messages in that window |
-| `/wwt colors on/off` | Class colors on names |
-| `/wwt test` | Print a sample roll to the chosen window |
+- chat window that shows the rolls, and the output format (readable block / Blizzard's original lines)
+- show other players' rolls, with separate Need / Greed / Disenchant / Pass toggles
+- show who won
+- hide other loot messages in that window
+- class colors on names
+- a *Print sample roll* button to preview the output
+
+Chat commands: `/wwt` (open settings), `/wwt help`, `/wwt test` (print a sample roll).
 
 The addon enables the *Loot* message group in the chosen window automatically.
 

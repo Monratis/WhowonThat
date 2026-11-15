@@ -23,23 +23,7 @@ For every item you get one short block once the roll is finished:
 
 ## Setup
 
-Esc > Options > AddOns > **Who Won That**, or type `/wwt`. Every setting is in the panel; chat commands are optional (`/wwt help`).
-
-| Command | Does |
-| --- | --- |
-| `/wwt` | open the settings panel |
-| `/wwt help` | current settings + command list |
-| `/wwt list` | list chat windows |
-| `/wwt frame <number or name>` | choose the window |
-| `/wwt format summary` / `raw` | readable block / Blizzard's lines |
-| `/wwt need/greed/pass on/off` | toggle a roll type |
-| `/wwt only need` | show only one roll type |
-| `/wwt wins on/off` | show winners |
-| `/wwt others on/off` | hide other loot messages |
-| `/wwt colors on/off` | class colors |
-| `/wwt test` | print a sample roll |
-
-Default window is 1 (General) - pick your party tab in the settings.
+Everything is in the settings panel: Esc > Options > AddOns > **Who Won That** (or type `/wwt`). The default window is 1 (General) - pick your party tab there. Chat commands: `/wwt` opens the settings, `/wwt help`, `/wwt test` prints a sample roll.
 
 ## Compatibility
 

@@ -517,64 +517,14 @@ local function WindowName(i)
     return (name and name ~= "") and name or "-"
 end
 
-local function OnOff(v)
-    return v and "|cff00ff00ON|r" or "|cffff4040OFF|r"
-end
-
-local function Status()
-    Print(string.format("window: %d (%s) | format: %s | rolls: %s | winners: %s | other loot hidden: %s",
-        db.frame, WindowName(db.frame), db.format, OnOff(db.rolls), OnOff(db.wins), OnOff(db.hideOthers)))
-    Print(string.format("roll types: Need %s, Greed %s, Pass %s | class colors: %s",
-        OnOff(db.need), OnOff(db.greed), OnOff(db.pass), OnOff(db.classColors)))
-end
-
-local function Help()
-    Status()
-    Print("/wwt - open the settings panel (Esc > Options > AddOns > Who Won That); everything below is also in the panel")
-    Print("/wwt test - print a sample roll to the chosen window and check message recognition")
-    Print("/wwt list - list chat windows with their numbers")
-    Print("/wwt frame <number or name> - where to show rolls and winners")
-    Print("/wwt format summary / raw - readable block per item, or Blizzard's original lines")
-    Print("/wwt rolls on/off - show other players' rolls")
-    Print("/wwt need/greed/pass on/off - single roll types")
-    Print("/wwt only need  (or greed, pass) - show only that roll type")
-    Print("/wwt all - show all roll types")
-    Print("/wwt wins on/off - who won / everyone passed")
-    Print("/wwt others on/off - hide the rest of the loot messages in that window (crafted, quest, master looter...)")
-    Print("/wwt colors on/off - class colors on names (EllesmereUI colors if installed)")
-end
-
-local function ParseBool(s)
-    s = (s or ""):lower()
-    if s == "on" or s == "1" or s == "yes" then return true end
-    if s == "off" or s == "0" or s == "no" then return false end
-    return nil
-end
-
-local function FindWindow(arg)
-    local n = tonumber(arg)
-    if n then
-        n = math.floor(n)
-        if n >= 1 and n <= (NUM_CHAT_WINDOWS or 10) and _G["ChatFrame" .. n] then
-            return n
-        end
-        return nil
-    end
-    arg = (arg or ""):lower()
-    for i = 1, (NUM_CHAT_WINDOWS or 10) do
-        local name = WindowName(i)
-        if name ~= "-" and name:lower() == arg then
-            return i
-        end
-    end
-    return nil
-end
-
 local settingsCategory -- category in Esc > Options > AddOns
 
-local TYPE_ALIASES = {
-    need = "need", greed = "greed", pass = "pass",
-}
+local function Help()
+    Print("Settings: Esc > Options > AddOns > Who Won That")
+    Print("/wwt - open the settings panel")
+    Print("/wwt help - show this help")
+    Print("/wwt test - print a sample roll to the chosen chat window")
+end
 
 -- /wwt test: builds sample messages from the game's REAL strings (LOOT_ROLL_*), checks that
 -- the addon recognizes them and (in "summary" mode) renders them through the same code as real rolls.
@@ -669,83 +619,14 @@ local function OpenPanel()
 end
 
 local function HandleSlash(input)
-    local cmd, rest = (input or ""):match("^%s*(%S*)%s*(.-)%s*$")
-    cmd = (cmd or ""):lower()
-    rest = rest or ""
+    local cmd = ((input or ""):match("^%s*(%S*)") or ""):lower()
     if cmd == "" then
         -- plain /wwt opens the settings panel
         if not OpenPanel() then
             Print("The settings panel is not available in this game version.")
-            Help()
         end
-    elseif cmd == "help" or cmd == "status" then
-        Help()
     elseif cmd == "test" then
         RunTest()
-    elseif cmd == "config" or cmd == "options" or cmd == "ui" then
-        if not OpenPanel() then
-            Print("The settings panel is not available in this game version - use the /wwt commands.")
-        end
-    elseif cmd == "list" then
-        for i = 1, (NUM_CHAT_WINDOWS or 10) do
-            if _G["ChatFrame" .. i] then
-                Print(string.format("%d - %s%s", i, WindowName(i), i == db.frame and "  <- here" or ""))
-            end
-        end
-    elseif cmd == "frame" or cmd == "window" then
-        local n = FindWindow(rest)
-        if not n then
-            Print("No such window. Type /wwt list.")
-            return
-        end
-        db.frame = n
-        EnsureLootGroup()
-        Status()
-    elseif cmd == "format" then
-        rest = rest:lower()
-        if rest ~= "summary" and rest ~= "raw" then
-            Print("Usage: /wwt format summary  or  raw")
-            return
-        end
-        db.format = rest
-        wipe(items)
-        Status()
-    elseif cmd == "all" then
-        db.rolls, db.need, db.greed, db.de, db.pass = true, true, true, true, true
-        Status()
-    elseif cmd == "only" then
-        local t = TYPE_ALIASES[rest:lower()]
-        if not t then
-            Print("Usage: /wwt only need  (or greed, pass)")
-            return
-        end
-        db.rolls = true
-        for _, key in ipairs({ "need", "greed", "pass" }) do
-            db[key] = (key == t)
-        end
-        Status()
-    elseif TYPE_ALIASES[cmd] then
-        local v = ParseBool(rest)
-        if v == nil then
-            Print("Usage: /wwt " .. cmd .. " on  or  off")
-            return
-        end
-        db[TYPE_ALIASES[cmd]] = v
-        if v then
-            db.rolls = true
-        end
-        Status()
-    elseif cmd == "rolls" or cmd == "wins" or cmd == "others" or cmd == "colors" then
-        local v = ParseBool(rest)
-        if v == nil then
-            Print("Usage: /wwt " .. cmd .. " on  or  off")
-            return
-        end
-        if cmd == "rolls" then db.rolls = v
-        elseif cmd == "wins" then db.wins = v
-        elseif cmd == "colors" then db.classColors = v
-        else db.hideOthers = v end
-        Status()
     else
         Help()
     end
@@ -825,7 +706,7 @@ local function RegisterPanel()
     AddBool("classColors", "Class colors on names",
         "Colors player names by class. If EllesmereUI is installed its class colors are used.")
 
-    -- Buttons: sample roll and command list
+    -- Button: sample roll
     local SettingsPanelRef = _G.SettingsPanel
     if CreateSettingsButtonInitializer and SettingsPanelRef and SettingsPanelRef.GetLayout then
         local layout = SettingsPanelRef:GetLayout(category)
@@ -833,9 +714,6 @@ local function RegisterPanel()
             layout:AddInitializer(CreateSettingsButtonInitializer("Test",
                 "Print sample roll", RunTest,
                 "Prints a sample roll to the chosen chat window and checks that the game's roll messages are recognized.", true))
-            layout:AddInitializer(CreateSettingsButtonInitializer("Chat commands",
-                "Show commands", Help,
-                "Lists the /wwt chat commands. Every setting is also available in this panel.", true))
         end
     end
 
