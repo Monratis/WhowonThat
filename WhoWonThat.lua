@@ -299,11 +299,13 @@ local KIND_ICON = {
 }
 
 -- e.g. "[dice] Need 74"
-local function RollLabel(r, st)
+local function RollLabel(r, st, isWinner)
     local icon = KIND_ICON[st.kind]
+    -- the winning number is green, everyone else's is white
+    local numberColor = isWinner and "|cff33ff33" or "|cffffffff"
     return (icon and (icon .. " ") or "")
         .. "|cffaaaaaa" .. st.label .. "|r"
-        .. (r.roll and (" |cffffffff" .. r.roll .. "|r") or "")
+        .. (r.roll and (" " .. numberColor .. r.roll .. "|r") or "")
         .. (r.isSelf and "  |cffffd100(You)|r" or "")
 end
 
@@ -402,7 +404,7 @@ local function RenderDrop(info)
             .. "  |cffffd100WON|r"
         local wst = STATE_INFO[winner.state]
         if wst then
-            line = line .. "  " .. RollLabel(winner, wst)
+            line = line .. "  " .. RollLabel(winner, wst, true)
         end
         Emit(frame, line, "LOOT")
     end
