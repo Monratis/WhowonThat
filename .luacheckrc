@@ -1,5 +1,5 @@
--- Luacheck configuration for World of Warcraft Addon
-std = "lua51"
+-- Luacheck configuration for WoW Forever (Midnight engine, Lua 5.4)
+std = "lua54"
 
 -- Ignore certain warnings common in WoW addons
 ignore = {
