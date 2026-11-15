@@ -1,5 +1,9 @@
 # Changelog
 
+## 4.2.1
+
+- The chat window list now shows only windows the player really has (shown or docked). Combat Log, temporary (whisper) windows and unused slots are not offered. A saved window that no longer exists falls back to the main chat window.
+
 ## 4.2.0
 
 - Removed the chat configuration commands: all settings live in the settings panel. Remaining commands: `/wwt` (open settings), `/wwt help`, `/wwt test`.

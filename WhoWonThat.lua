@@ -175,8 +175,28 @@ local function Parse(msg)
     return nil
 end
 
+-- A chat window the player really has: shown or docked (the same test Blizzard uses), not a temporary
+-- (whisper) window and not the combat log. The engine creates ChatFrame1..10 even when most are unused.
+local function IsUsableWindow(i)
+    local f = _G["ChatFrame" .. i]
+    if not f or f.isTemporary or (COMBATLOG and f == COMBATLOG) then
+        return false
+    end
+    local getInfo = FCF_GetChatWindowInfo or GetChatWindowInfo
+    if getInfo then
+        local name, _, _, _, _, _, shown, _, docked = getInfo(i)
+        return (name ~= nil and name ~= "") and (shown and true or (docked ~= nil and docked ~= false and docked ~= 0))
+    end
+    return f:IsShown() and true or false
+end
+
 local function TargetFrame()
-    return db and _G["ChatFrame" .. db.frame]
+    if not db then
+        return nil
+    end
+    -- if the saved window is not a real one (any more), use the main window
+    local i = IsUsableWindow(db.frame) and db.frame or 1
+    return _G["ChatFrame" .. i]
 end
 
 -- Returning true = hide the message in this chat window.
@@ -660,10 +680,18 @@ local function RegisterPanel()
     end)
     local function WindowOptions()
         local container = Settings.CreateControlTextContainer()
+        local count = 0
         for i = 1, (NUM_CHAT_WINDOWS or 10) do
-            if _G["ChatFrame" .. i] then
+            if IsUsableWindow(i) then
                 container:Add(i, i .. " - " .. WindowName(i))
+                count = count + 1
             end
+        end
+        if count == 0 then
+            container:Add(1, "1 - " .. WindowName(1))
+        end
+        if not IsUsableWindow(db.frame) then
+            db.frame = 1 -- the saved window no longer exists: back to the main window
         end
         return container:GetData()
     end
