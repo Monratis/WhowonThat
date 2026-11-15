@@ -1,10 +1,16 @@
 -- Luacheck configuration for WoW Forever (Midnight engine, Lua 5.4)
 std = "lua54"
+max_line_length = false
+unused = false
+allow_defined_top = true
 
 -- Ignore certain warnings common in WoW addons
 ignore = {
     "212", -- Unused argument (common in WoW event handlers)
-    "113", -- Access to undefined global: the WoW API has thousands of globals, not all listed here
+    "11", -- undefined / non-standard globals: the WoW API has thousands of globals, not all listed here
+    "14", -- undefined fields of globals (Settings.*, C_LootHistory.* ...)
+    "4", -- shadowing
+    "6", -- whitespace
 }
 
 -- WoW Engine and Addon globals
