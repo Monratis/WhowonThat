@@ -1131,8 +1131,12 @@ local function RegisterPanel()
         if count == 0 then
             container:Add(1, "1 - " .. WindowName(1))
         end
-        if not IsUsableWindow(db.frame) then
-            db.frame = 1 -- the saved window no longer exists: back to the main window
+        -- This function runs every time the list is shown, so it must not change the saved value.
+        -- If the saved window is not available right now it is listed as such; the addon uses window 1
+        -- meanwhile (see TargetFrame) and goes back to the saved one when it is there again.
+        if not IsUsableWindow(db.frame) and type(db.frame) == "number" then
+            local name = WindowName(db.frame)
+            container:Add(db.frame, db.frame .. " - " .. (name ~= "-" and name or "window") .. " (not shown)")
         end
         return container:GetData()
     end
@@ -1197,6 +1201,10 @@ f:SetScript("OnEvent", function(_, event, arg1, arg2)
             if db[k] == nil then
                 db[k] = v
             end
+        end
+        -- leftovers of old test versions: no longer used, so they do not stay in the saved file
+        for _, k in ipairs({ "boot", "mainLoaded", "debug", "schema", "transmog", "errors", "strings", "colors" }) do
+            db[k] = nil
         end
         ApplyDetail()
         -- no switches in the panel for these: always the intended behavior

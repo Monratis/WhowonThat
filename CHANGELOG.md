@@ -1,5 +1,10 @@
 # Changelog
 
+## 4.5.1
+
+- Fixed: opening the chat window list could permanently change your saved chat window to window 1 when the saved window was not shown at that moment. Your choice is now never overwritten; the main window is used until the saved one is back.
+- Old unused entries from test versions are removed from the saved settings file.
+
 ## 4.5.0
 
 - Redesigned block: item icon, colored roll types, everyone who passed on one quiet line, the winning number in green.
