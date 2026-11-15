@@ -11,6 +11,7 @@ ignore = {
     "14", -- undefined fields of globals (Settings.*, C_LootHistory.* ...)
     "4", -- shadowing
     "6", -- whitespace
+    "131", -- unused global: slash command globals (SLASH_*) are read by the game, not by the addon
 }
 
 -- WoW Engine and Addon globals

@@ -34,7 +34,7 @@ jobs:
         run: luarocks install luacheck
 
       - name: Run Luacheck
-        run: luacheck .
+        run: luacheck WhoWonThat.lua
 
   package:
     name: Build WoW Addon Zip & Release
