@@ -17,6 +17,9 @@ For every item you get one short block once the roll is finished:
 - **Per-type filters** - show only Need, Greed and/or Pass; winners on/off.
 - **Less loot spam** - optionally hide the rest of the loot messages (picked up, crafted, quest...) in that window.
 - **Class colors** - names are colored by class: your custom palette if you use one (EllesmereUI or the ClassColors addon), Blizzard's standard colors otherwise. No other addon needed.
+- **Grouped by boss** - the boss name is printed once above the items of one kill.
+- **Impossible Need rolls flagged** - a Need roll on armor the class cannot wear (e.g. plate for a mage) gets a red X at the end of its line (also when that player won). Weapons and jewelry are never flagged.
+- **Optional group announcement** - off by default; send only your own wins, or all results, to party/raid chat. It waits a random moment, never repeats a line another player's addon already sent, and an announced result is not printed again as your own block (option).
 - **Compact layout** - on a narrow chat window it uses smaller indents and shortens long names (automatic, or choose in the settings).
 - **Real player links** - names are full Name-Realm links (the realm is not shown), so other chat addons can color, whisper and inspect them.
 - **Original lines mode** - keep Blizzard's own roll messages, just filtered by type.

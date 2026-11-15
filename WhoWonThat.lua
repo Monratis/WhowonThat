@@ -340,6 +340,9 @@ local function Truncate(name, max)
     return table.concat(chars, "", 1, max - 2) .. ".."
 end
 
+-- Red X icon (the game's "not ready" mark), used to flag a Need roll the player's class cannot use
+local ICON_CANT_USE = "|TInterface\\RaidFrame\\ReadyCheck-NotReady:14:14:0:0|t"
+
 -- "Who Won That" in front of a line (short "WWT" on a narrow window); empty when turned off
 local function AddonTag(compact)
     if not db.header then
@@ -471,10 +474,10 @@ local function RenderDrop(info, encounterID)
         return compact and Truncate(short, COMPACT_NAME_LENGTH) or short
     end
 
-    -- "(can't use)" next to a Need roll on armor the player's class cannot wear
+    -- red X (and "can't use" text on a wide window) at the end of a Need roll on armor the class cannot wear
     local function Flag(r, st)
         if db.flagUnusable and st.kind == "need" and not CanClassUse(r.playerClass, item) then
-            return "  |cffff4040" .. (compact and "(!)" or "(can't use)") .. "|r"
+            return "  " .. ICON_CANT_USE .. (compact and "" or " |cffff4040can't use|r")
         end
         return nil
     end

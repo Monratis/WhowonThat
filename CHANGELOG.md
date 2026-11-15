@@ -1,5 +1,9 @@
 # Changelog
 
+## 4.4.2
+
+- A Need roll the player's class cannot use is now marked with a red X at the end of the line (with "can't use" next to it on a wide window). It also applies to the winner.
+
 ## 4.4.1
 
 - Group announcements are now polite: they wait a random 2-7 seconds after the roll ends, and nothing is sent if another player's addon already announced the same item and winner.
