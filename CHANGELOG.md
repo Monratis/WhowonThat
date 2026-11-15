@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.4.0
+
+- Group by boss: the boss name is printed once above the items of one kill (option, on by default).
+- Impossible Need rolls are flagged in red, e.g. a mage rolling Need on plate. Only armor and shields are checked; weapons and jewelry are never flagged (option, on by default).
+- Optional announcement to party/raid chat: off, only my wins, or all results. Off by default; skipped while the game restricts addon chat.
+
 ## 4.3.2
 
 - The winner's roll number is now green.

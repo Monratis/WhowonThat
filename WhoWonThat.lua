@@ -18,6 +18,9 @@ local DEFAULTS = {
     hideOthers = true,  -- hide other loot messages in that window (picked up items etc.)
     classColors = true, -- color names by class (custom palette if present, else Blizzard colors)
     header = true,      -- put the addon name in front of each item line
+    byBoss = true,      -- print the boss name above the items of one kill
+    flagUnusable = true, -- mark Need rolls on armor the class cannot wear
+    announce = "off",   -- send results to group chat: "off", "mine" (only my wins) or "all"
     layout = "auto",    -- "auto" = compact on a narrow chat window, "normal", or "compact"
 }
 
@@ -299,7 +302,7 @@ local KIND_ICON = {
 }
 
 -- e.g. "[dice] Need 74"
-local function RollLabel(r, st, isWinner)
+local function RollLabel(r, st, isWinner, extra)
     local icon = KIND_ICON[st.kind]
     -- the winning number is green, everyone else's is white
     local numberColor = isWinner and "|cff33ff33" or "|cffffffff"
@@ -307,6 +310,7 @@ local function RollLabel(r, st, isWinner)
         .. "|cffaaaaaa" .. st.label .. "|r"
         .. (r.roll and (" " .. numberColor .. r.roll .. "|r") or "")
         .. (r.isSelf and "  |cffffd100(You)|r" or "")
+        .. (extra or "")
 end
 
 -- Compact layout for narrow chat windows: smaller indents and shortened long names.
@@ -335,12 +339,67 @@ local function Truncate(name, max)
     return table.concat(chars, "", 1, max - 2) .. ".."
 end
 
--- "Who Won That  [Item]" - the addon name in front of the item (short "WWT" on a narrow window)
-local function ItemLine(item, compact)
+-- "Who Won That" in front of a line (short "WWT" on a narrow window); empty when turned off
+local function AddonTag(compact)
     if not db.header then
+        return ""
+    end
+    return "|cff58c6fa" .. (compact and "WWT" or "Who Won That") .. "|r  "
+end
+
+-- Item line. When a boss header was printed above, the item needs no addon name of its own.
+local function ItemLine(item, compact, grouped)
+    if grouped then
         return item
     end
-    return "|cff58c6fa" .. (compact and "WWT" or "Who Won That") .. "|r  " .. item
+    return AddonTag(compact) .. item
+end
+
+-- Name of the encounter (boss) a drop belongs to, from the game's loot history. Nil if unknown.
+local lastEncounterKey
+local function EncounterName(encounterID)
+    if not encounterID or not C_LootHistory or not C_LootHistory.GetInfoForEncounter then
+        return nil
+    end
+    local info = C_LootHistory.GetInfoForEncounter(encounterID)
+    if type(info) ~= "table" then
+        return nil
+    end
+    local name = info.encounterName
+    if type(name) ~= "string" or name == "" or (issecretvalue and issecretvalue(name)) then
+        return nil
+    end
+    return name, tostring(encounterID) .. ":" .. tostring(info.startTime)
+end
+
+-- Heaviest armor each class can wear: 1 cloth, 2 leather, 3 mail, 4 plate.
+local ARMOR_CAP = {
+    PRIEST = 1, MAGE = 1, WARLOCK = 1,
+    ROGUE = 2, DRUID = 2, MONK = 2, DEMONHUNTER = 2,
+    HUNTER = 3, SHAMAN = 3, EVOKER = 3,
+    WARRIOR = 4, PALADIN = 4, DEATHKNIGHT = 4,
+}
+local SHIELD_CLASSES = { WARRIOR = true, PALADIN = true, SHAMAN = true }
+
+-- Returns false only when the class clearly cannot equip the item (armor heavier than it can wear, or a
+-- shield). Anything uncertain (weapons, jewelry, unknown items or classes) returns true.
+local function CanClassUse(classFile, item)
+    local getInfo = (C_Item and C_Item.GetItemInfoInstant) or GetItemInfoInstant
+    if not getInfo or type(classFile) ~= "string" then
+        return true
+    end
+    local _, _, _, equipLoc, _, classID, subClassID = getInfo(item)
+    if classID ~= 4 or type(subClassID) ~= "number" or equipLoc == "INVTYPE_CLOAK" then
+        return true
+    end
+    if subClassID == 6 then -- shield
+        return SHIELD_CLASSES[classFile] == true
+    end
+    local cap = ARMOR_CAP[classFile]
+    if cap and subClassID >= 1 and subClassID <= 4 and subClassID > cap then
+        return false
+    end
+    return true
 end
 
 -- Prints the summary of one item (data from C_LootHistory) on several lines:
@@ -348,7 +407,7 @@ end
 --      [crown] Winner  WON  [dice] Need 74
 --          Player2  [coin] Greed 55
 --          Player3  [dice] Need OS 31
-local function RenderDrop(info)
+local function RenderDrop(info, encounterID)
     local frame = TargetFrame()
     if not frame or type(info) ~= "table" then
         return
@@ -357,10 +416,24 @@ local function RenderDrop(info)
     if type(item) ~= "string" or (issecretvalue and issecretvalue(item)) then
         return
     end
+    -- boss header: printed once per kill, above the first item that is shown
+    local bossName, bossKey
+    if db.byBoss then
+        bossName, bossKey = EncounterName(encounterID)
+    end
+    local function BossHeader(compact)
+        if bossName and bossKey ~= lastEncounterKey then
+            lastEncounterKey = bossKey
+            Emit(frame, AddonTag(compact) .. "|cffffd100" .. bossName .. "|r", "LOOT")
+        end
+    end
+
     if info.allPassed then
         if db.wins then
-            Emit(frame, ItemLine(item, IsCompact(frame)), "LOOT")
-            Emit(frame, (IsCompact(frame) and "  " or "     ") .. "|cffaaaaaaNobody wanted it (everyone passed)|r", "LOOT")
+            local compact = IsCompact(frame)
+            BossHeader(compact)
+            Emit(frame, ItemLine(item, compact, bossName ~= nil), "LOOT")
+            Emit(frame, (compact and "  " or "     ") .. "|cffaaaaaaNobody wanted it (everyone passed)|r", "LOOT")
         end
         return
     end
@@ -397,21 +470,69 @@ local function RenderDrop(info)
         return compact and Truncate(short, COMPACT_NAME_LENGTH) or short
     end
 
-    Emit(frame, ItemLine(item, compact), "LOOT")
+    -- "(can't use)" next to a Need roll on armor the player's class cannot wear
+    local function Flag(r, st)
+        if db.flagUnusable and st.kind == "need" and not CanClassUse(r.playerClass, item) then
+            return "  |cffff4040" .. (compact and "(!)" or "(can't use)") .. "|r"
+        end
+        return nil
+    end
+
+    BossHeader(compact)
+    Emit(frame, ItemLine(item, compact, bossName ~= nil), "LOOT")
     if showWinner then
         local line = indentWinner .. ICON_CROWN .. " "
             .. PlayerLink(winner.playerName, ShortName(winner.playerName), winner.playerClass, Display(winner.playerName))
             .. "  |cffffd100WON|r"
         local wst = STATE_INFO[winner.state]
         if wst then
-            line = line .. "  " .. RollLabel(winner, wst, true)
+            line = line .. "  " .. RollLabel(winner, wst, true, Flag(winner, wst))
         end
         Emit(frame, line, "LOOT")
     end
     for i = 1, #list do
         local r, st = list[i].r, list[i].st
         Emit(frame, indentOthers .. PlayerLink(r.playerName, ShortName(r.playerName), r.playerClass, Display(r.playerName))
-            .. "  " .. RollLabel(r, st), "LOOT")
+            .. "  " .. RollLabel(r, st, false, Flag(r, st)), "LOOT")
+    end
+end
+
+-- Optional: tell the group who won. Skipped when the game restricts addon chat (e.g. during encounters).
+local function Announce(info)
+    local mode = db.announce
+    if mode ~= "mine" and mode ~= "all" then
+        return
+    end
+    local winner = info.winner
+    if info.allPassed or type(winner) ~= "table" or not UsableName(winner.playerName) then
+        return
+    end
+    if mode == "mine" and not winner.isSelf then
+        return
+    end
+    local item = info.itemHyperlink
+    if type(item) ~= "string" or (issecretvalue and issecretvalue(item)) then
+        return
+    end
+    if C_ChatInfo and C_ChatInfo.InChatMessagingLockdown and C_ChatInfo.InChatMessagingLockdown() then
+        return
+    end
+    local channel
+    if IsInRaid and IsInRaid() then
+        channel = "RAID"
+    elseif IsInGroup and LE_PARTY_CATEGORY_INSTANCE and IsInGroup(LE_PARTY_CATEGORY_INSTANCE) then
+        channel = "INSTANCE_CHAT"
+    elseif IsInGroup and IsInGroup() then
+        channel = "PARTY"
+    else
+        return
+    end
+    local st = STATE_INFO[winner.state]
+    local detail = st and (" (" .. st.label .. (winner.roll and (" " .. winner.roll) or "") .. ")") or ""
+    local who = winner.isSelf and "I" or ShortName(winner.playerName)
+    local send = SendChatMessage or (C_ChatInfo and C_ChatInfo.SendChatMessage) -- the same call Questie uses in Forever
+    if send then
+        send("Who Won That: " .. who .. " won " .. item .. detail, channel)
     end
 end
 
@@ -436,7 +557,8 @@ local function OnDropUpdate(encounterID, lootListKey)
     end
     printedDrops[key] = true
     printedCount = printedCount + 1
-    RenderDrop(info)
+    RenderDrop(info, encounterID)
+    Announce(info)
 end
 
 -- After /reload (or logging in mid-dungeon) the loot history already exists: mark finished
@@ -782,6 +904,21 @@ local function RegisterPanel()
     Settings.CreateDropdown(category, layoutSetting, LayoutOptions,
         "Use the compact layout if your chat window is small and lines wrap.")
 
+    -- Announce results to group chat (off by default)
+    local announceSetting = Settings.RegisterAddOnSetting(category, "WWT_ANNOUNCE", "announce", db,
+        Settings.VarType.String, "Announce to group chat", DEFAULTS.announce)
+    local function AnnounceOptions()
+        local container = Settings.CreateControlTextContainer()
+        container:Add("off", "Off", "Nothing is sent to other players.")
+        container:Add("mine", "Only my wins",
+            "Sends one line to party/raid chat when YOU win an item.")
+        container:Add("all", "All results",
+            "Sends one line per item to party/raid chat. If several group members use this, everyone announces.")
+        return container:GetData()
+    end
+    Settings.CreateDropdown(category, announceSetting, AnnounceOptions,
+        "Optionally tells your group who won. Off by default. Not sent while the game restricts addon chat (e.g. during boss fights).")
+
     -- What to show
     local rollsInit = AddBool("rolls", "Show other players' rolls",
         "Who chose Need/Greed/Pass and what they rolled.")
@@ -799,6 +936,10 @@ local function RegisterPanel()
         "The roll winner, and a note when everyone passed.")
     AddBool("hideOthers", "Hide other loot in that window",
         "Hides messages about picked up, crafted, quest and master-looter items etc.")
+    AddBool("byBoss", "Group by boss",
+        "Prints the boss name above the items of one kill.")
+    AddBool("flagUnusable", "Flag impossible Need rolls",
+        "Marks a Need roll in red when the item is armor that player's class cannot wear (e.g. plate for a mage). Weapons and jewelry are never flagged.")
     AddBool("header", "Show addon name",
         "Puts \"Who Won That\" in front of each item line so you can tell where the block comes from.")
     AddBool("classColors", "Class colors on names",
