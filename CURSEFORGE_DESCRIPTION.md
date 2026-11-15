@@ -16,7 +16,8 @@ For every item you get one short block once the roll is finished:
 - **Pick the chat window** - e.g. your party/dungeon tab. Other windows are never touched.
 - **Per-type filters** - show only Need, Greed and/or Pass; winners on/off.
 - **Less loot spam** - optionally hide the rest of the loot messages (picked up, crafted, quest...) in that window.
-- **Class colors** - uses EllesmereUI's class colors if installed, Blizzard's otherwise.
+- **Class colors** - names are colored by class: your custom palette if you use one (EllesmereUI or the ClassColors addon), Blizzard's standard colors otherwise. No other addon needed.
+- **Compact layout** - on a narrow chat window it uses smaller indents and shortens long names (automatic, or choose in the settings).
 - **Real player links** - names are full Name-Realm links (the realm is not shown), so other chat addons can color, whisper and inspect them.
 - **Original lines mode** - keep Blizzard's own roll messages, just filtered by type.
 - Built on the game's loot history (`C_LootHistory`), with a chat-message fallback.

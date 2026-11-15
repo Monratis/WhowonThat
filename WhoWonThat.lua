@@ -16,7 +16,8 @@ local DEFAULTS = {
     pass = true,        -- show passes
     wins = true,        -- show who won / that everyone passed
     hideOthers = true,  -- hide other loot messages in that window (picked up items etc.)
-    classColors = true, -- color names by class (EllesmereUI colors if installed)
+    classColors = true, -- color names by class (custom palette if present, else Blizzard colors)
+    layout = "auto",    -- "auto" = compact on a narrow chat window, "normal", or "compact"
 }
 
 local TYPE_LABEL = { need = "Need", greed = "Greed", de = "Disenchant", pass = "Pass" }
@@ -228,10 +229,14 @@ end
 
 -- Player as a clickable link with the FULL name (Name-Realm), so chat addons
 -- (name coloring etc.) recognize the player like in a regular message.
--- Class color: EllesmereUI palette first (user's custom colors), then Blizzard's default.
+-- Class color: the user's custom palette if they use one, otherwise Blizzard's standard class colors.
 local function ClassColor(classFile)
     if not classFile then
         return nil
+    end
+    -- user-defined palettes: the "ClassColors" addon, then EllesmereUI
+    if type(CUSTOM_CLASS_COLORS) == "table" and CUSTOM_CLASS_COLORS[classFile] then
+        return CUSTOM_CLASS_COLORS[classFile]
     end
     if type(EllesmereUI) == "table" and EllesmereUI.GetRawClassColor then
         local c = EllesmereUI.GetRawClassColor(classFile)
@@ -239,12 +244,13 @@ local function ClassColor(classFile)
             return c
         end
     end
+    -- nothing installed: Blizzard's standard class colors
     return RAID_CLASS_COLORS and RAID_CLASS_COLORS[classFile]
 end
 
-local function PlayerLink(full, short, classFile)
+local function PlayerLink(full, short, classFile, display)
     -- short name in the text, full name (Name-Realm) in the link
-    local link = "|Hplayer:" .. full .. "|h[" .. (short or full) .. "]|h"
+    local link = "|Hplayer:" .. full .. "|h[" .. (display or short or full) .. "]|h"
     if db.classColors then
         local class = classFile
         if not class then
@@ -300,6 +306,32 @@ local function RollLabel(r, st)
         .. (r.isSelf and "  |cffffd100(You)|r" or "")
 end
 
+-- Compact layout for narrow chat windows: smaller indents and shortened long names.
+local COMPACT_WIDTH = 380 -- chat windows narrower than this (UI units) use the compact layout in "auto" mode
+local COMPACT_NAME_LENGTH = 8
+
+local function IsCompact(frame)
+    if db.layout == "compact" then
+        return true
+    elseif db.layout == "normal" then
+        return false
+    end
+    local width = frame and frame.GetWidth and frame:GetWidth()
+    return type(width) == "number" and width > 0 and width < COMPACT_WIDTH
+end
+
+-- Cuts a name to max characters and appends ".." (UTF-8 aware, so accented letters are not split).
+local function Truncate(name, max)
+    local chars = {}
+    for ch in name:gmatch("[%z\1-\127\194-\244][\128-\191]*") do
+        chars[#chars + 1] = ch
+    end
+    if #chars <= max then
+        return name
+    end
+    return table.concat(chars, "", 1, max - 2) .. ".."
+end
+
 -- Prints the summary of one item (data from C_LootHistory) on several lines:
 --   [Item]
 --      [crown] Winner  WON  [dice] Need 74
@@ -317,7 +349,7 @@ local function RenderDrop(info)
     if info.allPassed then
         if db.wins then
             Emit(frame, item, "LOOT")
-            Emit(frame, "     |cffaaaaaaNobody wanted it (everyone passed)|r", "LOOT")
+            Emit(frame, (IsCompact(frame) and "  " or "     ") .. "|cffaaaaaaNobody wanted it (everyone passed)|r", "LOOT")
         end
         return
     end
@@ -344,10 +376,20 @@ local function RenderDrop(info)
         return
     end
 
+    local compact = IsCompact(frame)
+    local indentWinner, indentOthers = "   ", "        "
+    if compact then
+        indentWinner, indentOthers = " ", "   "
+    end
+    local function Display(name)
+        local short = ShortName(name)
+        return compact and Truncate(short, COMPACT_NAME_LENGTH) or short
+    end
+
     Emit(frame, item, "LOOT")
     if showWinner then
-        local line = "   " .. ICON_CROWN .. " "
-            .. PlayerLink(winner.playerName, ShortName(winner.playerName), winner.playerClass)
+        local line = indentWinner .. ICON_CROWN .. " "
+            .. PlayerLink(winner.playerName, ShortName(winner.playerName), winner.playerClass, Display(winner.playerName))
             .. "  |cffffd100WON|r"
         local wst = STATE_INFO[winner.state]
         if wst then
@@ -357,7 +399,7 @@ local function RenderDrop(info)
     end
     for i = 1, #list do
         local r, st = list[i].r, list[i].st
-        Emit(frame, "        " .. PlayerLink(r.playerName, ShortName(r.playerName), r.playerClass)
+        Emit(frame, indentOthers .. PlayerLink(r.playerName, ShortName(r.playerName), r.playerClass, Display(r.playerName))
             .. "  " .. RollLabel(r, st), "LOOT")
     end
 end
@@ -714,6 +756,21 @@ local function RegisterPanel()
     end
     Settings.CreateDropdown(category, formatSetting, FormatOptions, "How rolls are shown in that window.")
 
+    -- Layout: compact for narrow chat windows
+    local layoutSetting = Settings.RegisterAddOnSetting(category, "WWT_LAYOUT", "layout", db,
+        Settings.VarType.String, "Layout", DEFAULTS.layout)
+    local function LayoutOptions()
+        local container = Settings.CreateControlTextContainer()
+        container:Add("auto", "Automatic",
+            "Compact when the chat window is narrow, normal otherwise.")
+        container:Add("normal", "Normal", "Full names and wide indents.")
+        container:Add("compact", "Compact",
+            "Smaller indents and long names shortened with .. - for small chat windows.")
+        return container:GetData()
+    end
+    Settings.CreateDropdown(category, layoutSetting, LayoutOptions,
+        "Use the compact layout if your chat window is small and lines wrap.")
+
     -- What to show
     local rollsInit = AddBool("rolls", "Show other players' rolls",
         "Who chose Need/Greed/Pass and what they rolled.")
@@ -732,7 +789,7 @@ local function RegisterPanel()
     AddBool("hideOthers", "Hide other loot in that window",
         "Hides messages about picked up, crafted, quest and master-looter items etc.")
     AddBool("classColors", "Class colors on names",
-        "Colors player names by class. If EllesmereUI is installed its class colors are used.")
+        "Colors player names by class, using your custom class colors if you have them (e.g. EllesmereUI), otherwise the standard ones.")
 
     -- Button: sample roll
     local SettingsPanelRef = _G.SettingsPanel

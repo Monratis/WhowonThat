@@ -1,5 +1,10 @@
 # Changelog
 
+## 4.3.0
+
+- New Layout setting (Automatic / Normal / Compact): on a narrow chat window the block uses smaller indents and shortens long names.
+- EllesmereUI is no longer declared as a dependency. Class colors still use the EllesmereUI or ClassColors palette when present, and Blizzard's standard class colors otherwise.
+
 ## 4.2.1
 
 - The chat window list now shows only windows the player really has (shown or docked). Combat Log, temporary (whisper) windows and unused slots are not offered. A saved window that no longer exists falls back to the main chat window.

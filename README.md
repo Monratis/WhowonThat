@@ -24,14 +24,11 @@ Made for **WoW Forever** (Midnight engine, Interface `16001`).
 - **Choose the window** - send rolls to e.g. your party/dungeon tab; other chat windows are not touched.
 - **Per-type filters** - show only Need, Greed and/or Pass; show/hide winners.
 - **Less loot spam** - optionally hide the rest of the loot messages (picked up, crafted, quest...) in that window.
-- **Class colors** - uses EllesmereUI's class colors when installed, Blizzard's otherwise.
+- **Class colors** - names are colored by class: your custom palette if you use one (EllesmereUI or the ClassColors addon), Blizzard's standard class colors otherwise. No other addon is required.
+- **Compact layout** - on a narrow chat window the block uses smaller indents and shortens long names; automatic, or force it in the settings.
 - **Full player links** - names are real `Name-Realm` player links (the realm is not displayed), so chat addons can color and whisper them.
 - **Original lines mode** - `raw` format keeps Blizzard's own roll messages, just filtered by type.
 - Uses the game's loot history (`C_LootHistory`) and falls back to parsing chat messages if it is unavailable.
-
-## Optional dependency
-
-[EllesmereUI](https://www.curseforge.com/wow/addons/ellesmereui) - if installed, its class colors are used for player names. Not required.
 
 ## Installation
 
@@ -49,6 +46,7 @@ Everything is configured in the game's settings panel: `Esc > Options > AddOns >
 - show who won
 - hide other loot messages in that window
 - class colors on names
+- layout: automatic / normal / compact (for small chat windows)
 - a *Print sample roll* button to preview the output
 
 Chat commands: `/wwt` (open settings), `/wwt help`, `/wwt test` (print a sample roll).
