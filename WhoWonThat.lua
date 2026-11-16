@@ -24,6 +24,7 @@ local DEFAULTS = {
     hideWhenAnnounced = true, -- do not print my own block for a result that was announced in group chat
     detail = "all",     -- how much to show: "winner", "rolls" (winner + Need/Greed) or "all" (also passes)
     layout = "auto",    -- "auto" = compact on a narrow chat window, "normal", or "compact"
+    hintSeen = false,   -- the one-time "how to choose a chat window" tip was shown
 }
 
 local TYPE_LABEL = { need = "Need", greed = "Greed", de = "Disenchant", pass = "Pass" }
@@ -277,12 +278,19 @@ end
 local ROLL_STATE = (Enum and Enum.EncounterLootDropRollState)
     or { NeedMainSpec = 0, NeedOffSpec = 1, Transmog = 2, Greed = 3, NoRoll = 4, Pass = 5 }
 local STATE_INFO = {
-    [ROLL_STATE.NeedMainSpec] = { kind = "need", label = "Need" },
-    [ROLL_STATE.NeedOffSpec] = { kind = "need", label = "Need OS" },
-    [ROLL_STATE.Greed] = { kind = "greed", label = "Greed" },
-    [ROLL_STATE.Pass] = { kind = "pass", label = "Pass" },
+    [ROLL_STATE.NeedMainSpec] = { kind = "need", label = "Need", rank = 1 },
+    [ROLL_STATE.NeedOffSpec] = { kind = "need", label = "Need OS", rank = 2 },
+    [ROLL_STATE.Greed] = { kind = "greed", label = "Greed", rank = 3 },
+    [ROLL_STATE.Pass] = { kind = "pass", label = "Pass", rank = 4 },
     -- NoRoll: the player has not chosen yet - skipped
 }
+-- Need MS first, then Need OS, then Greed; inside a type by roll (like the game decides the winner)
+local function RollOrder(a, b)
+    if a.st.rank ~= b.st.rank then return a.st.rank < b.st.rank end
+    local ra, rb = a.r.roll or -1, b.r.roll or -1
+    if ra ~= rb then return ra > rb end
+    return a.r.playerName < b.r.playerName
+end
 local printedDrops = {}
 local printedCount = 0
 
@@ -314,7 +322,6 @@ local function RollLabel(r, st, isWinner, extra)
     return (icon and (icon .. " ") or "")
         .. "|cff" .. (LABEL_COLOR[st.kind] or "aaaaaa") .. st.label .. "|r"
         .. (r.roll and (" " .. numberColor .. r.roll .. "|r") or "")
-        .. (r.isSelf and "  |cffffd100(You)|r" or "")
         .. (extra or "")
 end
 
@@ -473,6 +480,11 @@ local function EncounterName(encounterID)
     if type(name) ~= "string" or name == "" or (issecretvalue and issecretvalue(name)) then
         return nil
     end
+    -- "Miscellaneous" is the game's catch-all for loot that is not from a boss: no "Loot from:" for it,
+    -- the block simply shows the item (same as when there is no boss data)
+    if name == "Miscellaneous" or name == _G.MISCELLANEOUS then
+        return nil
+    end
     return name, tostring(encounterID) .. ":" .. tostring(info.startTime)
 end
 
@@ -511,11 +523,7 @@ end
 --      [crown] Winner  WON  [dice] Need 74
 --          Player2  [coin] Greed 55
 --          Player3  [dice] Need OS 31
-local function RenderDrop(info, encounterID)
-    local frame = TargetFrame()
-    if not frame or type(info) ~= "table" then
-        return
-    end
+local function RenderDropBody(Emit, frame, info, encounterID)
     local item = info.itemHyperlink
     if type(item) ~= "string" or (issecretvalue and issecretvalue(item)) then
         return
@@ -537,24 +545,22 @@ local function RenderDrop(info, encounterID)
             Emit(frame, Centered(frame, "Who Won That", "|cff58c6faWho Won That|r"), "LOOT")
             lastTitleAt = now
         end
-        if newBoss then
-            local itemID = tonumber(item:match("item:(%d+)"))
-            if itemID and BossBrowser() then
-                -- clickable: "[Boss]" opens the journal / AtlasLoot
-                Emit(frame, Centered(frame, "Loot from: [" .. bossName .. "]",
-                    "|cff9d9d9dLoot from:|r |cffffd100|H" .. BOSS_LINK .. itemID .. "|h[" .. bossName .. "]|h|r"), "LOOT")
-            else
-                Emit(frame, Centered(frame, "Loot from: " .. bossName,
-                    "|cff9d9d9dLoot from:|r |cffffd100" .. bossName .. "|r"), "LOOT")
-            end
+        if not newBoss then
+            return ""
         end
+        -- "Loot from: [Boss]" goes in front of the first item of the kill, on the same line
+        local itemID = tonumber(item:match("item:(%d+)"))
+        if itemID and BossBrowser() then
+            -- clickable: "[Boss]" opens the journal / AtlasLoot
+            return "|cff9d9d9dLoot from:|r |cffffd100|H" .. BOSS_LINK .. itemID .. "|h[" .. bossName .. "]|h|r  "
+        end
+        return "|cff9d9d9dLoot from:|r |cffffd100" .. bossName .. "|r  "
     end
 
     if info.allPassed then
         if db.wins then
             local compact = IsCompact(frame)
-            BossHeader()
-            Emit(frame, ItemLine(item), "LOOT")
+            Emit(frame, BossHeader() .. ItemLine(item), "LOOT")
             Emit(frame, (compact and "  " or "     ") .. "|cffaaaaaaNobody wanted it (everyone passed)|r", "LOOT")
         end
         return
@@ -570,11 +576,7 @@ local function RenderDrop(info, encounterID)
                 list[#list + 1] = { r = r, st = st }
             end
         end
-        table.sort(list, function(a, b)
-            local ra, rb = a.r.roll or -1, b.r.roll or -1
-            if ra ~= rb then return ra > rb end
-            return a.r.playerName < b.r.playerName
-        end)
+        table.sort(list, RollOrder)
     end
 
     local showWinner = db.wins and winner and UsableName(winner.playerName)
@@ -600,8 +602,7 @@ local function RenderDrop(info, encounterID)
         return nil
     end
 
-    BossHeader()
-    Emit(frame, ItemLine(item), "LOOT")
+    Emit(frame, BossHeader() .. ItemLine(item), "LOOT")
     if showWinner then
         local line = indentWinner .. ICON_CROWN .. " "
             .. PlayerLink(winner.playerName, ShortName(winner.playerName), winner.playerClass, Display(winner.playerName))
@@ -613,19 +614,49 @@ local function RenderDrop(info, encounterID)
         Emit(frame, line, "LOOT")
     end
     local passers = {}
+    -- players without a number (e.g. Greed when someone rolled Need: the game does not roll for them) are
+    -- collected on one line per type instead of one line each
+    local silent, silentOrder = {}, {}
     for i = 1, #list do
         local r, st = list[i].r, list[i].st
         if st.kind == "pass" then
             passers[#passers + 1] = PlayerLink(r.playerName, ShortName(r.playerName), r.playerClass, Display(r.playerName))
+        elseif not r.roll then
+            local g = silent[st.label]
+            if not g then
+                g = { st = st, names = {} }
+                silent[st.label] = g
+                silentOrder[#silentOrder + 1] = g
+            end
+            g.names[#g.names + 1] = PlayerLink(r.playerName, ShortName(r.playerName), r.playerClass, Display(r.playerName))
+                .. (Flag(r, st) or "")
         else
             Emit(frame, indentOthers .. PlayerLink(r.playerName, ShortName(r.playerName), r.playerClass, Display(r.playerName))
                 .. "  " .. RollLabel(r, st, false, Flag(r, st)), "LOOT")
         end
     end
+    for _, g in ipairs(silentOrder) do
+        Emit(frame, indentOthers .. KIND_ICON[g.st.kind] .. " |cff" .. (LABEL_COLOR[g.st.kind] or "aaaaaa") .. g.st.label
+            .. ":|r " .. table.concat(g.names, "|cff9d9d9d, |r"), "LOOT")
+    end
     if #passers > 0 then
         -- everyone who passed on one quiet line instead of one line each
         Emit(frame, indentOthers .. KIND_ICON.pass .. " |cff9d9d9d" .. (compact and "Pass: " or "Passed: ") .. "|r"
             .. table.concat(passers, "|cff9d9d9d, |r"), "LOOT")
+    end
+end
+
+-- The whole block is ONE chat message (lines joined with line breaks), so it stays together, has one
+-- timestamp and cannot be interleaved with other chat.
+local function RenderDrop(info, encounterID)
+    local frame = TargetFrame()
+    if not frame or type(info) ~= "table" then
+        return
+    end
+    local buf = {}
+    RenderDropBody(function(_, text) buf[#buf + 1] = text end, frame, info, encounterID)
+    if #buf > 0 then
+        Emit(frame, table.concat(buf, "\n"), "LOOT")
     end
 end
 
@@ -637,7 +668,6 @@ end
 --  * if another player's block for the same item already appeared in group chat, we do not send ours,
 --  * a result that was announced is not printed again as our own block (option, on by default).
 local ANNOUNCE_PREFIX = "Who Won That: "           -- starts the first line of every block: [Item]
-local ANNOUNCE_BOSS_PREFIX = "Who Won That - Loot from: "
 -- Group chat cannot carry colors or custom icons, but it accepts the raid target markers. Their own colors
 -- echo the block in your chat: gold star = winner, orange = Need, blue = Greed, grey moon = pass, red X = cannot use.
 local MARK = { winner = "{rt1}", need = "{rt2}", greed = "{rt6}", pass = "{rt5}", cantUse = "{rt7}" }
@@ -706,10 +736,12 @@ local function AlreadyAnnounced(info)
     return false
 end
 
--- The plain-text block, same structure as RenderDrop: item, winner, others by roll, who passed.
+-- The announcement is ONE chat message (group chat takes a single line of up to 255 bytes): item, winner,
+-- the other rolls by rank, who passed. When there are too many rolls to fit, the rest is cut as "+N more".
+local MAX_ANNOUNCE_BYTES = 250
 local function AnnounceLines(info, encounterID)
     local item = info.itemHyperlink
-    local lines = {}
+    local head = ANNOUNCE_PREFIX .. item
 
     local bossName, bossKey
     if db.byBoss then
@@ -717,23 +749,21 @@ local function AnnounceLines(info, encounterID)
     end
     if bossName and bossKey ~= lastAnnouncedBoss then
         lastAnnouncedBoss = bossKey
-        lines[#lines + 1] = ANNOUNCE_BOSS_PREFIX .. bossName
+        head = head .. " (" .. bossName .. ")"
     end
 
-    lines[#lines + 1] = ANNOUNCE_PREFIX .. item
     if info.allPassed then
-        lines[#lines + 1] = MARK.pass .. " Nobody wanted it (everyone passed)"
-        return lines
+        return { head .. " - " .. MARK.pass .. " everyone passed" }
     end
 
     local function Flag(r, st)
         if db.flagUnusable and st.kind == "need" and not CanClassUse(r.playerClass, item) then
-            return " " .. MARK.cantUse .. " can't use"
+            return " " .. MARK.cantUse
         end
         return ""
     end
-    local function Detail(r, st)
-        return " (" .. st.label .. (r.roll and (" " .. r.roll) or "") .. ")" .. Flag(r, st)
+    local function Entry(r, st)
+        return ShortName(r.playerName) .. (r.roll and (" " .. r.roll) or "") .. Flag(r, st)
     end
 
     local winner = info.winner
@@ -749,25 +779,53 @@ local function AnnounceLines(info, encounterID)
                 end
             end
         end
-        table.sort(others, function(x, y)
-            local rx, ry = x.r.roll or -1, y.r.roll or -1
-            if rx ~= ry then return rx > ry end
-            return x.r.playerName < y.r.playerName
-        end)
+        table.sort(others, RollOrder)
     end
 
+    -- Compact layout, rolls grouped by type so the type is written once, not once per player:
+    --   {star} Winner WON Greed 93, Second 88, Third 74 - Need OS: Fourth 40 - Passed: Fifth, Sixth
+    -- tokens = pieces with the separator that goes before them, so the end can be cut cleanly.
+    local tokens = {}
+    local label
     if db.wins and type(winner) == "table" and UsableName(winner.playerName) then
         local wst = STATE_INFO[winner.state]
-        lines[#lines + 1] = MARK.winner .. " " .. ShortName(winner.playerName) .. " WON"
-            .. (wst and Detail(winner, wst) or "")
+        if wst then
+            label = wst.label
+            tokens[#tokens + 1] = { " ", MARK.winner .. " " .. ShortName(winner.playerName) .. " WON " .. label
+                .. (winner.roll and (" " .. winner.roll) or "") .. Flag(winner, wst) }
+        else
+            tokens[#tokens + 1] = { " ", MARK.winner .. " " .. ShortName(winner.playerName) .. " WON" }
+        end
     end
     for _, o in ipairs(others) do
-        lines[#lines + 1] = (MARK[o.st.kind] or "-") .. " " .. ShortName(o.r.playerName) .. Detail(o.r, o.st)
+        if o.st.label ~= label then
+            label = o.st.label
+            tokens[#tokens + 1] = { #tokens == 0 and " " or " - ", label .. ": " .. Entry(o.r, o.st) }
+        else
+            tokens[#tokens + 1] = { ", ", Entry(o.r, o.st) }
+        end
     end
-    if #passers > 0 then
-        lines[#lines + 1] = MARK.pass .. " Passed: " .. table.concat(passers, ", ")
+    for i, name in ipairs(passers) do
+        if i == 1 then
+            tokens[#tokens + 1] = { #tokens == 0 and " " or " - ", "Passed: " .. name }
+        else
+            tokens[#tokens + 1] = { ", ", name }
+        end
     end
-    return lines
+
+    local text = head
+    for i, tok in ipairs(tokens) do
+        local left = #tokens - i + 1
+        local tail = (left > 1) and (" +" .. left .. " more") or ""
+        if #text + #tok[1] + #tok[2] > MAX_ANNOUNCE_BYTES - #tail then
+            if i > 1 then
+                text = text .. " +" .. left .. " more"
+            end
+            break
+        end
+        text = text .. tok[1] .. tok[2]
+    end
+    return { text }
 end
 
 -- Lines go out one at a time with a pause between them, from one queue shared by all drops.
@@ -1013,25 +1071,6 @@ local function OnLoot(msg)
 end
 
 local addFilter = ChatFrame_AddMessageEventFilter or (ChatFrameUtil and ChatFrameUtil.AddMessageEventFilter)
-local addGroup = ChatFrame_AddMessageGroup or (ChatFrameUtil and ChatFrameUtil.AddMessageGroup)
-
-local function EnsureLootGroup()
-    local frame = TargetFrame()
-    if not frame then
-        return
-    end
-    -- in Forever AddMessageGroup is a chat frame method (ChatFrameMixin); it persists by itself
-    if frame.ContainsMessageGroup and frame:ContainsMessageGroup("LOOT") then
-        return
-    end
-    if frame.AddMessageGroup then
-        frame:AddMessageGroup("LOOT")
-    elseif addGroup then
-        addGroup(frame, "LOOT")
-    else
-        Print("Could not add the Loot message group automatically - enable Loot for this window manually (right-click the tab > Settings).")
-    end
-end
 
 local function WindowName(i)
     local f = _G["ChatFrame" .. i]
@@ -1049,6 +1088,7 @@ local function Help()
     Print("/wwt - open the settings panel")
     Print("/wwt help - show this help")
     Print("/wwt test - print a sample roll to the chosen chat window")
+    Print("Tip: results go to the chat tab you pick in the settings (e.g. your Party tab). That tab does not need Loot messages enabled. For a quiet chat, turn Loot off in all tabs: right-click the tab > Settings > Loot.")
 end
 
 -- /wwt test: builds sample messages from the game's REAL strings (LOOT_ROLL_*), checks that
@@ -1223,9 +1263,6 @@ local function RegisterPanel()
     -- only windows the player really has (see IsUsableWindow)
     local frameSetting = Settings.RegisterAddOnSetting(category, "WWT_FRAME", "frame", db,
         Settings.VarType.Number, "Chat window", DEFAULTS.frame)
-    frameSetting:SetValueChangedCallback(function()
-        EnsureLootGroup()
-    end)
     local function WindowOptions()
         local container = Settings.CreateControlTextContainer()
         local count = 0
@@ -1248,7 +1285,7 @@ local function RegisterPanel()
         return container:GetData()
     end
     Settings.CreateDropdown(category, frameSetting, WindowOptions,
-        "The chat tab that shows the roll results (e.g. your party/dungeon tab). Other tabs are not touched.")
+        "The chat tab that shows the results (e.g. your party/dungeon tab). It does not need Loot messages enabled. For a quiet chat, turn Loot off in every tab (right-click the tab > Settings > Loot); you then see only these blocks. Other tabs are not touched.")
 
     AddChoice("layout", "Layout",
         "Compact uses smaller indents and shortens long names, for small chat windows.", {
@@ -1321,6 +1358,10 @@ f:SetScript("OnEvent", function(_, event, arg1, arg2)
         RegisterPanel()
     elseif event == "PLAYER_LOGIN" then
         BuildEntries()
+        if not db.hintSeen then
+            db.hintSeen = true
+            Print("Loot rolls will be shown in chat tab " .. WindowName(db.frame) .. ". Pick another tab (e.g. your Party tab) with /wwt. For a quiet chat, turn Loot off in all tabs: right-click the tab > Settings > Loot. Who Won That does not need it.")
+        end
         if addFilter then
             addFilter("CHAT_MSG_LOOT", Filter)
         end
@@ -1340,7 +1381,6 @@ f:SetScript("OnEvent", function(_, event, arg1, arg2)
         if hooksecurefunc and SetItemRef then
             hooksecurefunc("SetItemRef", OnBossLink) -- same way Questie handles its addon links
         end
-        EnsureLootGroup()
     elseif event == "CHAT_MSG_PARTY" or event == "CHAT_MSG_PARTY_LEADER" or event == "CHAT_MSG_RAID"
         or event == "CHAT_MSG_RAID_LEADER" or event == "CHAT_MSG_INSTANCE_CHAT"
         or event == "CHAT_MSG_INSTANCE_CHAT_LEADER" then

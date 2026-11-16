@@ -1,5 +1,15 @@
 # Changelog
 
+## 4.6.1
+
+- A group announcement is now ONE chat line (the game accepts a single line of up to 255 characters). Rolls are grouped by type so the type is written once: `{star} Winner WON Greed 93, Second 88 - Need OS: Third 40 - Passed: Fourth`. If the group is too big, the end is cut as "+N more".
+- Your own block is now ONE chat message too (one timestamp, nothing can get in between its lines).
+- "Loot from: [Boss]" shares the line with the first item of the kill. Loot the game files under "Miscellaneous" (not from a boss) no longer says "Loot from: Miscellaneous"; it just shows the item.
+- Players without a roll number (for example Greed when someone rolled Need) are listed on one line per type instead of one line each. The "(You)" tag is gone.
+- Rolls are sorted by type first (Need, Need OS, Greed), then by number, so a high Greed no longer sits above a lower Need.
+- The addon no longer changes your chat window settings (it used to add the Loot message group to the chosen window). Who Won That does not need Loot enabled anywhere; for a quiet chat turn Loot off in all tabs. A short tip explains this once after the update and in `/wwt help`.
+- README and the CurseForge page explain how to choose a good chat window.
+
 ## 4.6.0
 
 - Group announcements now post the same structure as your own block: boss line (once per kill), item, winner, everyone's rolls and who passed. They follow the Detail setting and flag impossible Need rolls.
