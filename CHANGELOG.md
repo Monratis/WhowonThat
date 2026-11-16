@@ -1,5 +1,9 @@
 # Changelog
 
+## 4.6.2
+
+- Same code as 4.6.1, re-released so that the current version is the one on the project page. Loot that does not come from a boss ("Miscellaneous") shows just the item, without "Loot from:".
+
 ## 4.6.1
 
 - A group announcement is now ONE chat line (the game accepts a single line of up to 255 characters). Rolls are grouped by type so the type is written once: `{star} Winner WON Greed 93, Second 88 - Need OS: Third 40 - Passed: Fourth`. If the group is too big, the end is cut as "+N more".
