@@ -15,5 +15,6 @@ ignore:
   - "build.ps1"
   - "CURSEFORGE_DESCRIPTION.md"
   - "dist"
+  - "images"
   - "logo.webp"
   - "profil_questbang.txt"

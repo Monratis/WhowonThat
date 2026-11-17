@@ -6,15 +6,7 @@
 
 Turns the flood of group loot roll lines into **one short summary per item**: who rolled what, and who won.
 
-```
-              Who Won That
-        Loot from: [Edwin VanCleef]
-[icon] [Worn Shortsword]
-   (crown) Brakk  WON  (dice) Need 74
-        Seluna  (coin) Greed 55
-        Monra   (dice) Need OS 31  (red X) can't use
-        (pass) Passed: Morv, Rax
-```
+![Who Won That in the chat window](https://raw.githubusercontent.com/Monratis/WhowonThat/main/images/example.png)
 
 Made for **WoW Forever** (Midnight engine, Interface `16001`). No other addon needed.
 

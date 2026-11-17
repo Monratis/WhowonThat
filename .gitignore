@@ -23,3 +23,6 @@ desktop.ini
 .idea/
 *.sublime-project
 *.sublime-workspace
+
+# Screenshots used by the README and the CurseForge page
+!images/*.png
