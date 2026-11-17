@@ -1,5 +1,10 @@
 # Changelog
 
+## 4.6.3
+
+- Lighter: the chat filter no longer parses loot messages, loot-history updates are batched (one check per item instead of one per roll), and the group-chat events are only registered while announcements are on.
+- Better first run: a short welcome a few seconds after login with a sample block in the chosen chat tab. `/wwt welcome` shows it again.
+
 ## 4.6.2
 
 - Same code as 4.6.1, re-released so that the current version is the one on the project page. Loot that does not come from a boss ("Miscellaneous") shows just the item, without "Loot from:".

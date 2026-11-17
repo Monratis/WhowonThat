@@ -157,11 +157,15 @@ end
 
 -- Returns a table {kind, item, player, roll, wonType, allPassed}, or nil if the message is not a roll.
 local function Parse(msg)
+    if #entries == 0 then
+        BuildEntries() -- built lazily: only the fallback and /wwt test need it
+    end
     for i = 1, #entries do
         local e = entries[i]
-        local caps = { msg:match(e.pattern) }
-        if caps[1] then
-            local r = { kind = e.kind, wonType = e.wonType, allPassed = e.allPassed }
+        local c1 = msg:match(e.pattern)
+        if c1 then
+            local caps = { msg:match(e.pattern) }
+            local r ={ kind = e.kind, wonType = e.wonType, allPassed = e.allPassed }
             for j = 1, #e.kinds do
                 local c = caps[j]
                 if c then
@@ -208,30 +212,29 @@ local function TargetFrame()
 end
 
 -- Returning true = hide the message in this chat window.
-local function Filter(self, event, msg, ...)
-    if not db or self ~= TargetFrame() then
+-- the saved window's frame without building the "ChatFrameN" name string on every chat message
+local FRAME_NAMES = {}
+local function TargetFrameRaw()
+    local i = db.frame
+    local name = FRAME_NAMES[i]
+    if not name then
+        name = "ChatFrame" .. i
+        FRAME_NAMES[i] = name
+    end
+    return _G[name]
+end
+
+-- Summary mode is always on: roll lines are replaced by our block and all other loot lines are hidden
+-- in this window too, so every loot message here is hidden and nothing needs to be parsed (cheap path).
+local function Filter(self)
+    if not db then
         return false
     end
-    if type(msg) ~= "string" or (issecretvalue and issecretvalue(msg)) then
+    -- cheap rejection for all the other chat windows before the (slower) usability check
+    if self ~= TargetFrameRaw() and self ~= ChatFrame1 then
         return false
     end
-    local p = Parse(msg)
-    if p then
-        if db.format == "summary" then
-            return true -- replaced by the summary block
-        end
-        if p.kind == "win" then
-            return not db.wins
-        end
-        if not db.rolls then
-            return true
-        end
-        if p.kind == "other" then
-            return false
-        end
-        return not db[p.kind]
-    end
-    return db.hideOthers
+    return self == TargetFrame()
 end
 
 -- Player as a clickable link with the FULL name (Name-Realm), so chat addons
@@ -255,6 +258,8 @@ local function ClassColor(classFile)
     return RAID_CLASS_COLORS and RAID_CLASS_COLORS[classFile]
 end
 
+local colorCodes = {}
+
 local function PlayerLink(full, short, classFile, display)
     -- short name in the text, full name (Name-Realm) in the link
     local link = "|Hplayer:" .. full .. "|h[" .. (display or short or full) .. "]|h"
@@ -266,9 +271,17 @@ local function PlayerLink(full, short, classFile, display)
         if not class and short then
             _, class = UnitClass(short)
         end
-        local c = ClassColor(class)
-        if c then
-            return string.format("|cff%02x%02x%02x%s|r", math.floor(c.r * 255 + 0.5), math.floor(c.g * 255 + 0.5), math.floor(c.b * 255 + 0.5), link)
+        -- the color code per class is computed once per block (cleared in RenderDrop), not once per player
+        local code = class and colorCodes[class]
+        if code == nil then
+            local c = ClassColor(class)
+            code = c and string.format("|cff%02x%02x%02x", math.floor(c.r * 255 + 0.5), math.floor(c.g * 255 + 0.5), math.floor(c.b * 255 + 0.5)) or false
+            if class then
+                colorCodes[class] = code
+            end
+        end
+        if code then
+            return code .. link .. "|r"
         end
     end
     return link
@@ -291,7 +304,7 @@ local function RollOrder(a, b)
     if ra ~= rb then return ra > rb end
     return a.r.playerName < b.r.playerName
 end
-local printedDrops = {}
+local printedDrops = {} -- [encounterID][lootListKey] = true (nested: no string building per event)
 local printedCount = 0
 
 local function ShortName(full)
@@ -654,6 +667,7 @@ local function RenderDrop(info, encounterID)
         return
     end
     local buf = {}
+    wipe(colorCodes)
     RenderDropBody(function(_, text) buf[#buf + 1] = text end, frame, info, encounterID)
     if #buf > 0 then
         Emit(frame, table.concat(buf, "\n"), "LOOT")
@@ -918,15 +932,9 @@ local function ProcessDrop(info, encounterID)
     RenderDrop(info, encounterID)
 end
 
-local function OnDropUpdate(encounterID, lootListKey)
-    if not HAS_HISTORY or not db or db.format ~= "summary" then
-        return
-    end
-    if issecretvalue and (issecretvalue(encounterID) or issecretvalue(lootListKey)) then
-        return
-    end
-    local key = tostring(encounterID) .. ":" .. tostring(lootListKey)
-    if printedDrops[key] then
+local function CheckDrop(encounterID, lootListKey)
+    local seen = printedDrops[encounterID]
+    if seen and seen[lootListKey] then
         return
     end
     local info = C_LootHistory.GetSortedInfoForDrop(encounterID, lootListKey)
@@ -936,8 +944,13 @@ local function OnDropUpdate(encounterID, lootListKey)
     if printedCount > 400 then
         wipe(printedDrops)
         printedCount = 0
+        seen = nil
     end
-    printedDrops[key] = true
+    if not seen then
+        seen = {}
+        printedDrops[encounterID] = seen
+    end
+    seen[lootListKey] = true
     printedCount = printedCount + 1
     if AnnounceActive() and C_Timer and C_Timer.After then
         -- random delay so that group members' addons do not all announce at the same moment
@@ -946,6 +959,58 @@ local function OnDropUpdate(encounterID, lootListKey)
         end)
     else
         ProcessDrop(info, encounterID)
+    end
+end
+
+-- The game fires LOOT_HISTORY_UPDATE_DROP for every single roll of every player, and each check builds a sorted
+-- copy of the drop. Updates are collected for a moment and each drop is checked once per batch instead.
+local COALESCE = 0.25 -- seconds
+local pendEnc, pendKey, pendSet, pendTimer = {}, {}, {}, false
+
+local function FlushDrops()
+    pendTimer = false
+    local n = #pendEnc
+    for i = 1, n do
+        local enc, key = pendEnc[i], pendKey[i]
+        pendEnc[i], pendKey[i] = nil, nil
+        local set = pendSet[enc]
+        if set then
+            set[key] = nil
+            if next(set) == nil then
+                pendSet[enc] = nil
+            end
+        end
+        CheckDrop(enc, key)
+    end
+end
+
+local function OnDropUpdate(encounterID, lootListKey)
+    if not HAS_HISTORY or not db or db.format ~= "summary" then
+        return
+    end
+    if issecretvalue and (issecretvalue(encounterID) or issecretvalue(lootListKey)) then
+        return
+    end
+    local seen = printedDrops[encounterID]
+    if seen and seen[lootListKey] then
+        return
+    end
+    if not (C_Timer and C_Timer.After) then
+        return CheckDrop(encounterID, lootListKey)
+    end
+    local set = pendSet[encounterID]
+    if not set then
+        set = {}
+        pendSet[encounterID] = set
+    end
+    if not set[lootListKey] then
+        set[lootListKey] = true
+        local n = #pendEnc + 1
+        pendEnc[n], pendKey[n] = encounterID, lootListKey
+    end
+    if not pendTimer then
+        pendTimer = true
+        C_Timer.After(COALESCE, FlushDrops)
     end
 end
 
@@ -966,9 +1031,13 @@ local function MarkExistingDrops()
             if type(drops) == "table" then
                 for _, d in ipairs(drops) do
                     if d.lootListKey and (d.winner or d.allPassed) then
-                        local key = tostring(id) .. ":" .. tostring(d.lootListKey)
-                        if not printedDrops[key] then
-                            printedDrops[key] = true
+                        local seen = printedDrops[id]
+                        if not seen then
+                            seen = {}
+                            printedDrops[id] = seen
+                        end
+                        if not seen[d.lootListKey] then
+                            seen[d.lootListKey] = true
                             printedCount = printedCount + 1
                         end
                     end
@@ -1088,7 +1157,35 @@ local function Help()
     Print("/wwt - open the settings panel")
     Print("/wwt help - show this help")
     Print("/wwt test - print a sample roll to the chosen chat window")
+    Print("/wwt welcome - show the first-run introduction again")
     Print("Tip: results go to the chat tab you pick in the settings (e.g. your Party tab). That tab does not need Loot messages enabled. For a quiet chat, turn Loot off in all tabs: right-click the tab > Settings > Loot.")
+end
+
+-- Prints one made-up roll block to the chosen chat window (used by /wwt test and the welcome).
+local function PrintSample()
+    local function roll(name, class, state, value, winner)
+        return { playerName = name, playerGUID = name, playerClass = class, isSelf = false,
+            state = state, roll = value, isWinner = winner or false }
+    end
+    local win = roll("Brakk-Testrealm", "WARRIOR", ROLL_STATE.NeedMainSpec, 74, true)
+    RenderDrop({
+        itemHyperlink = "|cffffffff|Hitem:25::::::::::::::|h[Worn Shortsword]|h|r", allPassed = false, winner = win,
+        rollInfos = {
+            win,
+            roll("Seluna-Testrealm", "PRIEST", ROLL_STATE.Greed, 55),
+            roll("Monra-Greytusk", "MAGE", ROLL_STATE.NeedOffSpec, 31),
+            roll("Rax-Testrealm", "ROGUE", ROLL_STATE.Greed, 12),
+            roll("Morv-Testrealm", "HUNTER", ROLL_STATE.Pass),
+        },
+    })
+end
+
+-- First-run welcome: short, shows what the addon does by printing a sample block in the chosen tab.
+local function Welcome()
+    Print("Ready. Loot rolls will show in chat tab |cffffd100" .. WindowName(db.frame)
+        .. "|r. Type |cffffd100/wwt|r to pick another tab (e.g. Party) or change the options. Here is a sample:")
+    PrintSample()
+    Print("That was only a sample. Other loot messages are hidden in that tab, so a separate tab works best.")
 end
 
 -- /wwt test: builds sample messages from the game's REAL strings (LOOT_ROLL_*), checks that
@@ -1149,21 +1246,7 @@ local function RunTest()
     -- 2) summary: sample data in the Blizzard loot history format
     if db.format == "summary" then
         if TargetFrame() then
-            local function roll(name, class, state, value, winner)
-                return { playerName = name, playerGUID = name, playerClass = class, isSelf = false,
-                    state = state, roll = value, isWinner = winner or false }
-            end
-            local win = roll("Brakk-Testrealm", "WARRIOR", ROLL_STATE.NeedMainSpec, 74, true)
-            RenderDrop({
-                itemHyperlink = item, allPassed = false, winner = win,
-                rollInfos = {
-                    win,
-                    roll("Seluna-Testrealm", "PRIEST", ROLL_STATE.Greed, 55),
-                    roll("Monra-Greytusk", "MAGE", ROLL_STATE.NeedOffSpec, 31),
-                    roll("Rax-Testrealm", "ROGUE", ROLL_STATE.Greed, 12),
-                    roll("Morv-Testrealm", "HUNTER", ROLL_STATE.Pass),
-                },
-            })
+            PrintSample()
             Print("You should see a block for [Worn Shortsword] in window " .. WindowName(db.frame) .. ".")
         else
             Print("Window " .. db.frame .. " does not exist - pick another window in the settings.")
@@ -1192,8 +1275,30 @@ local function HandleSlash(input)
         end
     elseif cmd == "test" then
         RunTest()
+    elseif cmd == "welcome" then
+        Welcome()
     else
         Help()
+    end
+end
+
+local f -- the event frame (created at the bottom)
+local GROUP_EVENTS = { "CHAT_MSG_PARTY", "CHAT_MSG_PARTY_LEADER", "CHAT_MSG_RAID", "CHAT_MSG_RAID_LEADER",
+    "CHAT_MSG_INSTANCE_CHAT", "CHAT_MSG_INSTANCE_CHAT_LEADER" }
+
+-- Group chat is only watched while announcements are on: with "off" the addon receives no group chat at all.
+local function UpdateGroupEvents()
+    if not f then return end
+    local on = AnnounceActive()
+    for i = 1, #GROUP_EVENTS do
+        if on then
+            f:RegisterEvent(GROUP_EVENTS[i])
+        else
+            f:UnregisterEvent(GROUP_EVENTS[i])
+        end
+    end
+    if not on then
+        wipe(announcedAt)
     end
 end
 
@@ -1310,7 +1415,7 @@ local function RegisterPanel()
             { "off", "Off", "Nothing is sent to other players." },
             { "mine", "Only my wins", "When you win an item, the same block you see (item, winner, rolls) goes to party/raid chat, with raid markers for the colors." },
             { "all", "All results", "The block for every item goes to party/raid chat. Follows the Detail setting. Duplicates are only possible if two members announce at the very same moment." },
-        })
+        }, nil, UpdateGroupEvents)
     local hideInit = AddBool("hideWhenAnnounced", "Hide my block when announced",
         "If the result was announced in group chat (by you or another player), your own detailed block is not printed again.")
     if hideInit and hideInit.SetParentInitializer and announceInit then
@@ -1334,7 +1439,7 @@ local function RegisterPanel()
     Settings.RegisterAddOnCategory(category)
 end
 
-local f = CreateFrame("Frame")
+f = CreateFrame("Frame")
 f:RegisterEvent("ADDON_LOADED")
 f:RegisterEvent("PLAYER_LOGIN")
 f:SetScript("OnEvent", function(_, event, arg1, arg2)
@@ -1356,11 +1461,17 @@ f:SetScript("OnEvent", function(_, event, arg1, arg2)
         db.flagUnusable, db.hideOthers = true, true
         db.format = "summary"
         RegisterPanel()
+        f:UnregisterEvent("ADDON_LOADED") -- only ours is needed; stop hearing about every other addon
     elseif event == "PLAYER_LOGIN" then
-        BuildEntries()
+        f:UnregisterEvent("PLAYER_LOGIN")
         if not db.hintSeen then
             db.hintSeen = true
-            Print("Loot rolls will be shown in chat tab " .. WindowName(db.frame) .. ". Pick another tab (e.g. your Party tab) with /wwt. For a quiet chat, turn Loot off in all tabs: right-click the tab > Settings > Loot. Who Won That does not need it.")
+            -- a moment after login, so it is not buried under the login chat spam and the chat tabs exist
+            if C_Timer and C_Timer.After then
+                C_Timer.After(4, Welcome)
+            else
+                Welcome()
+            end
         end
         if addFilter then
             addFilter("CHAT_MSG_LOOT", Filter)
@@ -1374,10 +1485,7 @@ f:SetScript("OnEvent", function(_, event, arg1, arg2)
         else
             f:RegisterEvent("CHAT_MSG_LOOT") -- fallback: assemble rolls from chat messages
         end
-        for _, e in ipairs({ "CHAT_MSG_PARTY", "CHAT_MSG_PARTY_LEADER", "CHAT_MSG_RAID", "CHAT_MSG_RAID_LEADER",
-            "CHAT_MSG_INSTANCE_CHAT", "CHAT_MSG_INSTANCE_CHAT_LEADER" }) do
-            f:RegisterEvent(e) -- to see announcements made by other players
-        end
+        UpdateGroupEvents() -- to see announcements made by other players (only when announcing)
         if hooksecurefunc and SetItemRef then
             hooksecurefunc("SetItemRef", OnBossLink) -- same way Questie handles its addon links
         end
