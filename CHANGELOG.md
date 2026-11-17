@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.6.4
+
+- Sturdier: an error from another addon while a result is being printed can no longer stop later results from showing.
+- The welcome is only marked as seen once it was shown (a quick /reload after login no longer skips it).
+- A roll that finished a moment before a /reload is no longer skipped; small guards against missing event data.
+
 ## 4.6.3
 
 - Lighter: the chat filter no longer parses loot messages, loot-history updates are batched (one check per item instead of one per roll), and the group-chat events are only registered while announcements are on.

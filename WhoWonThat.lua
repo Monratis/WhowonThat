@@ -36,6 +36,7 @@ local STALE_SECONDS = 180
 
 local db
 local entries = {}  -- {pattern, kinds, kind, wonType, self, prio}
+local entriesBuilt = false
 local items = {}    -- [itemLink] = { time = t, players = { [name] = { type, roll } } }
 
 -- Prints to a chat frame the way Blizzard does: AddMessage(text, r, g, b, id).
@@ -157,7 +158,8 @@ end
 
 -- Returns a table {kind, item, player, roll, wonType, allPassed}, or nil if the message is not a roll.
 local function Parse(msg)
-    if #entries == 0 then
+    if not entriesBuilt then
+        entriesBuilt = true
         BuildEntries() -- built lazily: only the fallback and /wwt test need it
     end
     for i = 1, #entries do
@@ -968,24 +970,23 @@ local COALESCE = 0.25 -- seconds
 local pendEnc, pendKey, pendSet, pendTimer = {}, {}, {}, false
 
 local function FlushDrops()
-    pendTimer = false
-    local n = #pendEnc
-    for i = 1, n do
-        local enc, key = pendEnc[i], pendKey[i]
-        pendEnc[i], pendKey[i] = nil, nil
-        local set = pendSet[enc]
-        if set then
-            set[key] = nil
-            if next(set) == nil then
-                pendSet[enc] = nil
-            end
+    -- take the batch and reset the queue first, so an error while printing one drop (e.g. from another
+    -- addon hooking AddMessage) can neither lose the other drops nor leave the queue in a broken state
+    local encs, keys = pendEnc, pendKey
+    pendEnc, pendKey, pendSet, pendTimer = {}, {}, {}, false
+    for i = 1, #encs do
+        local ok, err = pcall(CheckDrop, encs[i], keys[i])
+        if not ok and geterrorhandler then
+            geterrorhandler()(err)
         end
-        CheckDrop(enc, key)
     end
 end
 
 local function OnDropUpdate(encounterID, lootListKey)
     if not HAS_HISTORY or not db or db.format ~= "summary" then
+        return
+    end
+    if encounterID == nil or lootListKey == nil then
         return
     end
     if issecretvalue and (issecretvalue(encounterID) or issecretvalue(lootListKey)) then
@@ -1036,7 +1037,8 @@ local function MarkExistingDrops()
                             seen = {}
                             printedDrops[id] = seen
                         end
-                        if not seen[d.lootListKey] then
+                        local queued = pendSet[id] and pendSet[id][d.lootListKey]
+                        if not seen[d.lootListKey] and not queued then -- queued = still waiting in the batch
                             seen[d.lootListKey] = true
                             printedCount = printedCount + 1
                         end
@@ -1465,11 +1467,15 @@ f:SetScript("OnEvent", function(_, event, arg1, arg2)
     elseif event == "PLAYER_LOGIN" then
         f:UnregisterEvent("PLAYER_LOGIN")
         if not db.hintSeen then
-            db.hintSeen = true
-            -- a moment after login, so it is not buried under the login chat spam and the chat tabs exist
+            -- a moment after login, so it is not buried under the login chat spam and the chat tabs exist;
+            -- marked as seen only once it was really shown (a /reload within those seconds must not skip it)
             if C_Timer and C_Timer.After then
-                C_Timer.After(4, Welcome)
+                C_Timer.After(4, function()
+                    db.hintSeen = true
+                    Welcome()
+                end)
             else
+                db.hintSeen = true
                 Welcome()
             end
         end
