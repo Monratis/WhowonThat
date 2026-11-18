@@ -696,6 +696,19 @@ local ANNOUNCE_MEMORY = 120 -- seconds an announcement is remembered
 local SEND_INTERVAL = 0.5   -- seconds between two lines (keeps clear of the chat flood limit)
 local announcedAt = {}      -- [itemID] = { time, time, ... } one entry per block seen from other players
 
+-- A new group starts from scratch: the full name and the boss line are written again, and what was seen in the
+-- old group's chat no longer matters. Called when you leave a group (the next one is always a new party).
+local wasInGroup = false
+local function OnGroupRosterUpdate()
+    local inGroup = IsInGroup and IsInGroup() or false
+    if wasInGroup and not inGroup then
+        announcedOnce = false
+        lastAnnouncedBoss = nil
+        wipe(announcedAt)
+    end
+    wasInGroup = inGroup
+end
+
 local function AnnounceActive()
     return db and (db.announce == "mine" or db.announce == "all")
 end
@@ -1522,6 +1535,8 @@ f:SetScript("OnEvent", function(_, event, arg1, arg2)
             f:RegisterEvent("CHAT_MSG_LOOT") -- fallback: assemble rolls from chat messages
         end
         UpdateGroupEvents() -- to see announcements made by other players (only when announcing)
+        wasInGroup = IsInGroup and IsInGroup() or false
+        f:RegisterEvent("GROUP_ROSTER_UPDATE") -- leaving a group resets the announcement state
         if hooksecurefunc and SetItemRef then
             hooksecurefunc("SetItemRef", OnBossLink) -- same way Questie handles its addon links
         end
@@ -1529,6 +1544,8 @@ f:SetScript("OnEvent", function(_, event, arg1, arg2)
         or event == "CHAT_MSG_RAID_LEADER" or event == "CHAT_MSG_INSTANCE_CHAT"
         or event == "CHAT_MSG_INSTANCE_CHAT_LEADER" then
         OnGroupChat(arg1, arg2)
+    elseif event == "GROUP_ROSTER_UPDATE" then
+        OnGroupRosterUpdate()
     elseif event == "LOOT_HISTORY_UPDATE_DROP" then
         OnDropUpdate(arg1, arg2)
     elseif event == "CHAT_MSG_LOOT" then
