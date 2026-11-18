@@ -1,5 +1,9 @@
 # Changelog
 
+## 4.6.5
+
+- Nicer group announcement: first names only (no surnames), the winner first with the roll in brackets, then one group per roll type with its marker, separated by `/`: `{star} Winner (Need 83) / {greed} Greed: Second 71, Third 40 / {pass} Pass: Fourth`.
+
 ## 4.6.4
 
 - Sturdier: an error from another addon while a result is being printed can no longer stop later results from showing.
