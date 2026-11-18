@@ -1,5 +1,9 @@
 # Changelog
 
+## 4.6.6
+
+- Group announcements: the first one of a session starts with "Who Won That:", every later one with the short "WWT:". Both are recognised, so two players with the addon still do not announce the same drop twice.
+
 ## 4.6.5
 
 - Nicer group announcement: first names only (no surnames), the winner first with the roll in brackets, then one group per roll type with its marker, separated by `/`: `{star} Winner (Need 83) / {greed} Greed: Second 71, Third 40 / {pass} Pass: Fourth`.
