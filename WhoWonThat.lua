@@ -783,23 +783,9 @@ local function AnnounceLines(info, encounterID)
     end
 
     local winner = info.winner
-    local others, passers = {}, {}
-    if db.rolls then
-        for _, r in ipairs(info.rollInfos or {}) do
-            local st = STATE_INFO[r.state]
-            if st and UsableName(r.playerName) and db[st.kind] and not (r.isWinner and db.wins) then
-                if st.kind == "pass" then
-                    passers[#passers + 1] = ShortName(r.playerName)
-                else
-                    others[#others + 1] = { r = r, st = st }
-                end
-            end
-        end
-        table.sort(others, RollOrder)
-    end
+    -- Group chat carries only the winner: the other players' names are not announced.
 
-    -- Compact layout, rolls grouped by type so the type is written once, not once per player:
-    --   {star} Winner WON Greed 93, Second 88, Third 74 - Need OS: Fourth 40 - Passed: Fifth, Sixth
+    -- Layout: {star} Winner (Greed 93)
     -- tokens = pieces with the separator that goes before them, so the end can be cut cleanly.
     local tokens = {}
     local label
@@ -807,25 +793,10 @@ local function AnnounceLines(info, encounterID)
         local wst = STATE_INFO[winner.state]
         if wst then
             label = wst.label
-            tokens[#tokens + 1] = { " ", MARK.winner .. " " .. ShortName(winner.playerName) .. " WON " .. label
-                .. (winner.roll and (" " .. winner.roll) or "") .. Flag(winner, wst) }
+            tokens[#tokens + 1] = { " ", MARK.winner .. " " .. ShortName(winner.playerName) .. " (" .. label
+                .. (winner.roll and (" " .. winner.roll) or "") .. ")" .. Flag(winner, wst) }
         else
             tokens[#tokens + 1] = { " ", MARK.winner .. " " .. ShortName(winner.playerName) .. " WON" }
-        end
-    end
-    for _, o in ipairs(others) do
-        if o.st.label ~= label then
-            label = o.st.label
-            tokens[#tokens + 1] = { #tokens == 0 and " " or " - ", label .. ": " .. Entry(o.r, o.st) }
-        else
-            tokens[#tokens + 1] = { ", ", Entry(o.r, o.st) }
-        end
-    end
-    for i, name in ipairs(passers) do
-        if i == 1 then
-            tokens[#tokens + 1] = { #tokens == 0 and " " or " - ", "Passed: " .. name }
-        else
-            tokens[#tokens + 1] = { ", ", name }
         end
     end
 
