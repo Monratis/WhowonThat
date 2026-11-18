@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.6.7
+
+- The addon name in group announcements is now `<Who Won That>` the first time and `<WWT>` after that (angle brackets, so it cannot be mistaken for an item link). The older prefixes are still recognised.
+- The "full name once" and "boss line once" state is only marked after the line was really sent, and it starts over with every new group.
+- A very long item link plus boss name can no longer push the winner out of the announcement.
+
 ## 4.6.6
 
 - Group announcements: the first one of a session starts with "Who Won That:", every later one with the short "WWT:". Both are recognised, so two players with the addon still do not announce the same drop twice.
