@@ -820,14 +820,14 @@ local function AnnounceLines(info, encounterID)
     for _, o in ipairs(others) do
         if o.st.label ~= label then
             label = o.st.label
-            tokens[#tokens + 1] = { #tokens == 0 and " " or " - ", label .. ": " .. Entry(o.r, o.st) }
+            tokens[#tokens + 1] = { #tokens == 0 and " " or " / ", MARK[o.st.kind] .. " " .. label .. ": " .. Entry(o.r, o.st) }
         else
             tokens[#tokens + 1] = { ", ", Entry(o.r, o.st) }
         end
     end
     for i, name in ipairs(passers) do
         if i == 1 then
-            tokens[#tokens + 1] = { #tokens == 0 and " " or " - ", "Passed: " .. name }
+            tokens[#tokens + 1] = { #tokens == 0 and " " or " / ", MARK.pass .. " Pass: " .. name }
         else
             tokens[#tokens + 1] = { ", ", name }
         end
