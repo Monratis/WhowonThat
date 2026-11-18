@@ -683,7 +683,9 @@ end
 --  * we wait a random moment after the roll ends (the first client to wake up announces),
 --  * if another player's block for the same item already appeared in group chat, we do not send ours,
 --  * a result that was announced is not printed again as our own block (option, on by default).
-local ANNOUNCE_PREFIX = "Who Won That: "           -- starts the first line of every block: [Item]
+local ANNOUNCE_PREFIX = "Who Won That: "           -- starts the first announcement of a session: [Item]
+local ANNOUNCE_PREFIX_SHORT = "WWT: "              -- every later one is shorter
+local announcedOnce = false
 -- Group chat cannot carry colors or custom icons, but it accepts the raid target markers. Their own colors
 -- echo the block in your chat: gold star = winner, orange = Need, blue = Greed, grey moon = pass, red X = cannot use.
 local MARK = { winner = "{rt1}", need = "{rt2}", greed = "{rt6}", pass = "{rt5}", cantUse = "{rt7}" }
@@ -720,7 +722,7 @@ local function OnGroupChat(msg, sender)
     if type(msg) ~= "string" or (issecretvalue and (issecretvalue(msg) or issecretvalue(sender))) then
         return
     end
-    if msg:sub(1, #ANNOUNCE_PREFIX) ~= ANNOUNCE_PREFIX then
+    if msg:sub(1, #ANNOUNCE_PREFIX) ~= ANNOUNCE_PREFIX and msg:sub(1, #ANNOUNCE_PREFIX_SHORT) ~= ANNOUNCE_PREFIX_SHORT then
         return
     end
     local itemID = ItemIDOf(msg)
@@ -761,7 +763,8 @@ local function AnnounceName(full)
 end
 local function AnnounceLines(info, encounterID)
     local item = info.itemHyperlink
-    local head = ANNOUNCE_PREFIX .. item
+    local head = (announcedOnce and ANNOUNCE_PREFIX_SHORT or ANNOUNCE_PREFIX) .. item
+    announcedOnce = true
 
     local bossName, bossKey
     if db.byBoss then
