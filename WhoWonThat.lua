@@ -755,6 +755,10 @@ end
 -- The announcement is ONE chat message (group chat takes a single line of up to 255 bytes): item, winner,
 -- the other rolls by rank, who passed. When there are too many rolls to fit, the rest is cut as "+N more".
 local MAX_ANNOUNCE_BYTES = 250
+local function AnnounceName(full)
+    local short = ShortName(full)
+    return short:match("^(%S+)") or short
+end
 local function AnnounceLines(info, encounterID)
     local item = info.itemHyperlink
     local head = ANNOUNCE_PREFIX .. item
@@ -779,13 +783,27 @@ local function AnnounceLines(info, encounterID)
         return ""
     end
     local function Entry(r, st)
-        return ShortName(r.playerName) .. (r.roll and (" " .. r.roll) or "") .. Flag(r, st)
+        return AnnounceName(r.playerName) .. (r.roll and (" " .. r.roll) or "") .. Flag(r, st)
     end
 
     local winner = info.winner
-    -- Group chat carries only the winner: the other players' names are not announced.
+    local others, passers = {}, {}
+    if db.rolls then
+        for _, r in ipairs(info.rollInfos or {}) do
+            local st = STATE_INFO[r.state]
+            if st and UsableName(r.playerName) and db[st.kind] and not (r.isWinner and db.wins) then
+                if st.kind == "pass" then
+                    passers[#passers + 1] = AnnounceName(r.playerName)
+                else
+                    others[#others + 1] = { r = r, st = st }
+                end
+            end
+        end
+        table.sort(others, RollOrder)
+    end
 
-    -- Layout: {star} Winner (Greed 93)
+    -- Compact layout, rolls grouped by type so the type is written once, not once per player:
+    --   {star} Winner WON Greed 93, Second 88, Third 74 - Need OS: Fourth 40 - Passed: Fifth, Sixth
     -- tokens = pieces with the separator that goes before them, so the end can be cut cleanly.
     local tokens = {}
     local label
@@ -793,10 +811,25 @@ local function AnnounceLines(info, encounterID)
         local wst = STATE_INFO[winner.state]
         if wst then
             label = wst.label
-            tokens[#tokens + 1] = { " ", MARK.winner .. " " .. ShortName(winner.playerName) .. " (" .. label
+            tokens[#tokens + 1] = { " ", MARK.winner .. " " .. AnnounceName(winner.playerName) .. " (" .. label
                 .. (winner.roll and (" " .. winner.roll) or "") .. ")" .. Flag(winner, wst) }
         else
-            tokens[#tokens + 1] = { " ", MARK.winner .. " " .. ShortName(winner.playerName) .. " WON" }
+            tokens[#tokens + 1] = { " ", MARK.winner .. " " .. AnnounceName(winner.playerName) .. " WON" }
+        end
+    end
+    for _, o in ipairs(others) do
+        if o.st.label ~= label then
+            label = o.st.label
+            tokens[#tokens + 1] = { #tokens == 0 and " " or " - ", label .. ": " .. Entry(o.r, o.st) }
+        else
+            tokens[#tokens + 1] = { ", ", Entry(o.r, o.st) }
+        end
+    end
+    for i, name in ipairs(passers) do
+        if i == 1 then
+            tokens[#tokens + 1] = { #tokens == 0 and " " or " - ", "Passed: " .. name }
+        else
+            tokens[#tokens + 1] = { ", ", name }
         end
     end
 
