@@ -683,8 +683,10 @@ end
 --  * we wait a random moment after the roll ends (the first client to wake up announces),
 --  * if another player's block for the same item already appeared in group chat, we do not send ours,
 --  * a result that was announced is not printed again as our own block (option, on by default).
-local ANNOUNCE_PREFIX = "Who Won That: "           -- starts the first announcement of a session: [Item]
-local ANNOUNCE_PREFIX_SHORT = "WWT: "              -- every later one is shorter
+local ANNOUNCE_PREFIX = "<Who Won That> "         -- starts the first announcement of a session: [Item]
+local ANNOUNCE_PREFIX_SHORT = "<WWT> "            -- every later one is shorter
+-- Older versions used other prefixes; still recognised so two players on different versions do not both announce.
+local KNOWN_PREFIXES = { ANNOUNCE_PREFIX, ANNOUNCE_PREFIX_SHORT, "Who Won That: ", "WWT: " }
 local announcedOnce = false
 -- Group chat cannot carry colors or custom icons, but it accepts the raid target markers. Their own colors
 -- echo the block in your chat: gold star = winner, orange = Need, blue = Greed, grey moon = pass, red X = cannot use.
@@ -722,7 +724,14 @@ local function OnGroupChat(msg, sender)
     if type(msg) ~= "string" or (issecretvalue and (issecretvalue(msg) or issecretvalue(sender))) then
         return
     end
-    if msg:sub(1, #ANNOUNCE_PREFIX) ~= ANNOUNCE_PREFIX and msg:sub(1, #ANNOUNCE_PREFIX_SHORT) ~= ANNOUNCE_PREFIX_SHORT then
+    local known = false
+    for _, p in ipairs(KNOWN_PREFIXES) do
+        if msg:sub(1, #p) == p then
+            known = true
+            break
+        end
+    end
+    if not known then
         return
     end
     local itemID = ItemIDOf(msg)
@@ -764,19 +773,29 @@ end
 local function AnnounceLines(info, encounterID)
     local item = info.itemHyperlink
     local head = (announcedOnce and ANNOUNCE_PREFIX_SHORT or ANNOUNCE_PREFIX) .. item
-    announcedOnce = true
+    -- the "already said" flags are only set once the line was really sent (see Commit / PumpQueue)
+    local newBossKey
 
     local bossName, bossKey
     if db.byBoss then
         bossName, bossKey = EncounterName(encounterID)
     end
     if bossName and bossKey ~= lastAnnouncedBoss then
-        lastAnnouncedBoss = bossKey
-        head = head .. " (" .. bossName .. ")"
+        -- an overlong head (long item link plus a long, e.g. CJK, boss name) would crowd out the winner
+        if #head + #bossName + 3 <= MAX_ANNOUNCE_BYTES - 60 then
+            head = head .. " (" .. bossName .. ")"
+            newBossKey = bossKey
+        end
+    end
+    local function Commit()
+        announcedOnce = true
+        if newBossKey then
+            lastAnnouncedBoss = newBossKey
+        end
     end
 
     if info.allPassed then
-        return { head .. " - " .. MARK.pass .. " everyone passed" }
+        return { head .. " - " .. MARK.pass .. " everyone passed" }, Commit
     end
 
     local function Flag(r, st)
@@ -848,7 +867,7 @@ local function AnnounceLines(info, encounterID)
         end
         text = text .. tok[1] .. tok[2]
     end
-    return { text }
+    return { text }, Commit
 end
 
 -- Lines go out one at a time with a pause between them, from one queue shared by all drops.
@@ -862,6 +881,9 @@ local function PumpQueue()
     local locked = C_ChatInfo and C_ChatInfo.InChatMessagingLockdown and C_ChatInfo.InChatMessagingLockdown()
     if not locked then
         entry.send(entry.text, entry.channel)
+        if entry.onSent then
+            entry.onSent()
+        end
     end
     if #sendQueue > 0 and C_Timer and C_Timer.After then
         C_Timer.After(SEND_INTERVAL, PumpQueue)
@@ -872,9 +894,9 @@ local function PumpQueue()
     end
 end
 
-local function Enqueue(lines, channel, send)
+local function Enqueue(lines, channel, send, onSent)
     for _, text in ipairs(lines) do
-        sendQueue[#sendQueue + 1] = { text = text, channel = channel, send = send }
+        sendQueue[#sendQueue + 1] = { text = text, channel = channel, send = send, onSent = onSent }
     end
     if not sending then
         sending = true
@@ -921,7 +943,8 @@ local function Announce(info, encounterID)
     if not send then
         return false
     end
-    Enqueue(AnnounceLines(info, encounterID), channel, send)
+    local lines, commit = AnnounceLines(info, encounterID)
+    Enqueue(lines, channel, send, commit)
     return true
 end
 
