@@ -1,5 +1,10 @@
 # Changelog
 
+## 4.6.8
+
+- The result block in your chat now shows the game's own Need (dice), Greed (coin) and Pass icons instead of the words. Off-spec Need gets a small "OS" tag, and the "Passed:" / "Need:" prefixes are gone.
+- Group announcements write rolls as `Name:89` instead of `Name 89`.
+
 ## 4.6.7
 
 - The addon name in group announcements is now `<Who Won That>` the first time and `<WWT>` after that (angle brackets, so it cannot be mistaken for an item link). The older prefixes are still recognised.

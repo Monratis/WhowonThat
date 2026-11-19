@@ -294,7 +294,7 @@ local ROLL_STATE = (Enum and Enum.EncounterLootDropRollState)
     or { NeedMainSpec = 0, NeedOffSpec = 1, Transmog = 2, Greed = 3, NoRoll = 4, Pass = 5 }
 local STATE_INFO = {
     [ROLL_STATE.NeedMainSpec] = { kind = "need", label = "Need", rank = 1 },
-    [ROLL_STATE.NeedOffSpec] = { kind = "need", label = "Need OS", rank = 2 },
+    [ROLL_STATE.NeedOffSpec] = { kind = "need", label = "Need OS", tag = "OS", rank = 2 },
     [ROLL_STATE.Greed] = { kind = "greed", label = "Greed", rank = 3 },
     [ROLL_STATE.Pass] = { kind = "pass", label = "Pass", rank = 4 },
     -- NoRoll: the player has not chosen yet - skipped
@@ -334,8 +334,9 @@ local function RollLabel(r, st, isWinner, extra)
     local icon = KIND_ICON[st.kind]
     -- the winning number is green, everyone else's is white
     local numberColor = isWinner and "|cff33ff33" or "|cffffffff"
-    return (icon and (icon .. " ") or "")
-        .. "|cff" .. (LABEL_COLOR[st.kind] or "aaaaaa") .. st.label .. "|r"
+    -- the icon says Need/Greed/Pass; only the off-spec Need gets a small "OS" tag
+    return (icon and icon or ("|cff" .. (LABEL_COLOR[st.kind] or "aaaaaa") .. st.label .. "|r"))
+        .. (st.tag and (" |cff" .. (LABEL_COLOR[st.kind] or "aaaaaa") .. st.tag .. "|r") or "")
         .. (r.roll and (" " .. numberColor .. r.roll .. "|r") or "")
         .. (extra or "")
 end
@@ -651,12 +652,12 @@ local function RenderDropBody(Emit, frame, info, encounterID)
         end
     end
     for _, g in ipairs(silentOrder) do
-        Emit(frame, indentOthers .. KIND_ICON[g.st.kind] .. " |cff" .. (LABEL_COLOR[g.st.kind] or "aaaaaa") .. g.st.label
-            .. ":|r " .. table.concat(g.names, "|cff9d9d9d, |r"), "LOOT")
+        Emit(frame, indentOthers .. KIND_ICON[g.st.kind] .. (g.st.tag and (" |cff" .. (LABEL_COLOR[g.st.kind] or "aaaaaa") .. g.st.tag .. "|r") or "")
+            .. " " .. table.concat(g.names, "|cff9d9d9d, |r"), "LOOT")
     end
     if #passers > 0 then
         -- everyone who passed on one quiet line instead of one line each
-        Emit(frame, indentOthers .. KIND_ICON.pass .. " |cff9d9d9d" .. (compact and "Pass: " or "Passed: ") .. "|r"
+        Emit(frame, indentOthers .. KIND_ICON.pass .. " "
             .. table.concat(passers, "|cff9d9d9d, |r"), "LOOT")
     end
 end
@@ -818,7 +819,7 @@ local function AnnounceLines(info, encounterID)
         return ""
     end
     local function Entry(r, st)
-        return AnnounceName(r.playerName) .. (r.roll and (" " .. r.roll) or "") .. Flag(r, st)
+        return AnnounceName(r.playerName) .. (r.roll and (":" .. r.roll) or "") .. Flag(r, st)
     end
 
     local winner = info.winner
@@ -838,7 +839,7 @@ local function AnnounceLines(info, encounterID)
     end
 
     -- Compact layout, rolls grouped by type so the type is written once, not once per player:
-    --   {star} Winner WON Greed 93, Second 88, Third 74 - Need OS: Fourth 40 - Passed: Fifth, Sixth
+    --   {star} Winner:93 (Greed) / {greed} Greed: Second:88, Third:74 / Need OS: Fourth:40 / {pass} Pass: Fifth, Sixth
     -- tokens = pieces with the separator that goes before them, so the end can be cut cleanly.
     local tokens = {}
     local label
@@ -846,8 +847,8 @@ local function AnnounceLines(info, encounterID)
         local wst = STATE_INFO[winner.state]
         if wst then
             label = wst.label
-            tokens[#tokens + 1] = { " ", MARK.winner .. " " .. AnnounceName(winner.playerName) .. " (" .. label
-                .. (winner.roll and (" " .. winner.roll) or "") .. ")" .. Flag(winner, wst) }
+            tokens[#tokens + 1] = { " ", MARK.winner .. " " .. AnnounceName(winner.playerName)
+                .. (winner.roll and (":" .. winner.roll) or "") .. " (" .. label .. ")" .. Flag(winner, wst) }
         else
             tokens[#tokens + 1] = { " ", MARK.winner .. " " .. AnnounceName(winner.playerName) .. " WON" }
         end
