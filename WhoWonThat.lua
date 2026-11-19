@@ -25,6 +25,7 @@ local DEFAULTS = {
     detail = "all",     -- how much to show: "winner", "rolls" (winner + Need/Greed) or "all" (also passes)
     layout = "auto",    -- "auto" = compact on a narrow chat window, "normal", or "compact"
     hintSeen = false,   -- the one-time "how to choose a chat window" tip was shown
+    summary = "everyone", -- loot summary window at the end of a dungeon: "off", "mine" (only my items) or "everyone"
 }
 
 local TYPE_LABEL = { need = "Need", greed = "Greed", de = "Disenchant", pass = "Pass" }
@@ -1312,9 +1313,1279 @@ local function ProcessDrop(info, encounterID, doneAt, final, state)
     RenderDrop(info, encounterID)
 end
 
+-- ===== Dungeon loot summary window =====
+-- Every item won during the current instance run is remembered in memory (never saved) and shown in a small
+-- window when the dungeon ends: one row per player with the item icons they won ("board"), or a list of
+-- item / winner / roll ("details"). A run starts when you enter a dungeon or raid and is reset by a new run or
+-- by leaving the group. The window never opens during combat or an encounter; it waits until that ends.
+-- The whole section is one function: its many locals would otherwise push the main chunk past Lua's limit of
+-- 200 local variables per function (the file would not load at all). Only the table Summary is visible outside.
+local Summary = (function()
+local SUMMARY_FRAME_NAME = "WhoWonThatSummaryFrame"
+local SUMMARY_MAX_DROPS = 200     -- bound for one run's list
+local SUMMARY_MAX_PLAYERS = 60    -- bound for one run's roster (a raid plus replacements)
+local SUMMARY_SETTLE = 8          -- seconds after the end of the dungeon before the window opens (final rolls)
+local SUMMARY_MAX_WAIT = 75       -- longest wait for open rolls after the end of the dungeon
+local SUMMARY_LATE_RECORD = 90    -- seconds after leaving the instance in which finished rolls still count
+-- Layout on an 8 pixel rhythm. The list panel sits SUMMARY_PAD from the sides, SUMMARY_TOP below the top edge
+-- and SUMMARY_FOOT above the bottom edge; its content is 4 pixels inside it (content width = width - 32).
+local SUMMARY_WIDTH, SUMMARY_DETAILS_WIDTH = 336, 480
+local SUMMARY_MAX_BODY = 384      -- tallest the list gets before it scrolls (mouse wheel)
+local SUMMARY_NAME_COL, SUMMARY_TILE, SUMMARY_TILE_GAP, SUMMARY_ROW_PAD = 96, 30, 4, 5 -- name col incl. class icon
+local SUMMARY_SIDE = 8 -- inner left / right padding of a board row
+local SUMMARY_HEADER = 26      -- height of the title band (flat fallback look)
+local SUMMARY_PAD, SUMMARY_TOP, SUMMARY_FOOT, SUMMARY_SUB_Y = 12, 56, 44, -36
+local DETAIL_ROW, DETAIL_HEAD = 24, 20 -- details view: row height, column header strip height
+local SUMMARY_DOT = " \194\183 "  -- " · "
+local GOLD_R, GOLD_G, GOLD_B = 0.89, 0.72, 0.29
+local MUTED_R, MUTED_G, MUTED_B = 0.62, 0.60, 0.55
+
+local summaryRun       -- current run: { id, name, instanceType, startTime, endTime, drops, roster, rosterCount, ... }
+local summaryLast      -- the last run with items (for /wwt summary after a new run started)
+local summaryShowing   -- the run the window shows
+local summaryDetails = false -- window in "details" (list) view
+local summaryFrame, summaryContent
+local summaryWaiting, summaryWaitingAuto -- run waiting for combat to end before the window opens
+
+local function PlainNumber(v)
+    return type(v) == "number" and not (issecretvalue and issecretvalue(v))
+end
+
+-- id, name, type of the dungeon / raid you are in, or nil outside of one
+local function InstanceRunInfo()
+    if not GetInstanceInfo then
+        return nil
+    end
+    local ok, name, instanceType, _, _, _, _, _, instanceID = pcall(GetInstanceInfo)
+    if not ok or (issecretvalue and issecretvalue(instanceType)) then
+        return nil
+    end
+    if instanceType ~= "party" and instanceType ~= "raid" then
+        return nil
+    end
+    local display = UsableName(name) and name or "Dungeon"
+    local id = PlainNumber(instanceID) and instanceID or display
+    return id, display, instanceType
+end
+
+local function NewRun(id, name, instanceType)
+    return { id = id, name = name, instanceType = instanceType, startTime = GetTime(), drops = {}, roster = {},
+        rosterCount = 0, seen = {} }
+end
+
+-- Adds a player to the run's roster (keyed by the short name) and returns the entry, or nil.
+local function AddRosterName(run, full, class)
+    if not UsableName(full) or #full > 64 then
+        return nil
+    end
+    local key = ShortName(full)
+    local p = run.roster[key]
+    if not p then
+        if run.rosterCount >= SUMMARY_MAX_PLAYERS then
+            return nil
+        end
+        run.rosterCount = run.rosterCount + 1
+        p = { full = full, short = key, order = run.rosterCount }
+        run.roster[key] = p
+    elseif full:find("-", 1, true) and not p.full:find("-", 1, true) then
+        p.full = full
+    end
+    if not p.class and UsableName(class) then
+        p.class = class
+    end
+    return p
+end
+
+-- Everyone in the group is added to the run (players who leave stay listed, so the board shows the whole run).
+local function SnapshotRoster(run)
+    if not run or not UnitName then
+        return
+    end
+    local units = { "player" }
+    if IsInRaid and IsInRaid() and GetNumGroupMembers then
+        local n = math.min(GetNumGroupMembers() or 0, 40)
+        for i = 1, n do
+            units[#units + 1] = "raid" .. i
+        end
+    else
+        for i = 1, 4 do
+            units[#units + 1] = "party" .. i
+        end
+    end
+    for _, unit in ipairs(units) do
+        if not UnitExists or UnitExists(unit) then
+            local ok, name, realm = pcall(UnitName, unit)
+            if ok and UsableName(name) then
+                local full = UsableName(realm) and (name .. "-" .. realm) or name
+                local okc, _, class = pcall(UnitClass, unit)
+                local p = AddRosterName(run, full, okc and class or nil)
+                if p and (unit == "player" or (UnitIsUnit and UnitIsUnit(unit, "player"))) then
+                    p.isSelf = true
+                end
+            end
+        end
+    end
+end
+
+local function VisibleCount(run, mineOnly)
+    if not mineOnly then
+        return #run.drops
+    end
+    local n = 0
+    for _, d in ipairs(run.drops) do
+        if d.player.isSelf then
+            n = n + 1
+        end
+    end
+    return n
+end
+
+local RenderSummary -- the window (below)
+
+local function RefreshSummaryWindow(run)
+    if summaryFrame and summaryFrame:IsShown() and summaryShowing == run and RenderSummary then
+        RenderSummary()
+    end
+end
+
+-- A finished drop with a winner: remembered for the run's summary. encounterID / lootListKey (loot history
+-- only) keep the same drop from being counted twice.
+local function RecordWin(info, encounterID, lootListKey)
+    local run = summaryRun
+    if not run or type(info) ~= "table" or info.allPassed == true then
+        return
+    end
+    local dropKey = DropKey(encounterID, lootListKey)
+    if dropKey and run.seen[dropKey] then
+        return
+    end
+    if run.left and GetTime() - (run.leftAt or 0) > SUMMARY_LATE_RECORD then
+        return -- outside of the instance for a while: not loot of this run
+    end
+    local winner, item = info.winner, info.itemHyperlink
+    if type(winner) ~= "table" or not UsableName(winner.playerName) then
+        return
+    end
+    if not UsableName(item) or #item > 512 or not ItemIDOf(item) or #run.drops >= SUMMARY_MAX_DROPS then
+        return
+    end
+    local p = AddRosterName(run, winner.playerName, winner.playerClass)
+    if not p then
+        return
+    end
+    if not p.class and UnitClass then
+        local ok, _, class = pcall(UnitClass, p.full)
+        if not (ok and UsableName(class)) then
+            ok, _, class = pcall(UnitClass, p.short)
+        end
+        if ok and UsableName(class) then
+            p.class = class
+        end
+    end
+    if IsSelfSender(winner.playerName) then
+        p.isSelf = true
+    end
+    local st = PlainNumber(winner.state) and STATE_INFO[winner.state] or nil
+    run.drops[#run.drops + 1] = { item = item, player = p, kind = st and st.kind, tag = st and st.tag,
+        roll = PlainNumber(winner.roll) and winner.roll or nil }
+    if dropKey then
+        run.seen[dropKey] = true
+    end
+    run.lastRecordAt = GetTime()
+    RefreshSummaryWindow(run)
+end
+
+-- ----- the window -----
+-- Look: a Blizzard dialog (dialog border, dark background, title plate on the top edge), a sunken list panel,
+-- item slots with quality-tinted icon frames, class icons, the standard red panel buttons and the corner X.
+-- Every piece of game art is optional: without the backdrop API the window keeps the flat look (dark
+-- rectangle, thin gold edge), an unknown atlas falls back to a file or leaves its icon out, and without the
+-- gradient API a gradient becomes flat color.
+local ART = {
+    dialogBg = "Interface\\DialogFrame\\UI-DialogBox-Background-Dark",
+    dialogEdge = "Interface\\DialogFrame\\UI-DialogBox-Border",
+    header = "Interface\\DialogFrame\\UI-DialogBox-Header",
+    iconFrame = "Interface\\Common\\WhiteIconFrame",
+    glow = "Interface\\Buttons\\UI-ActionButton-Border",
+    hilight = "Interface\\Buttons\\ButtonHilight-Square",
+    classes = "Interface\\GLUES\\CHARACTERCREATE\\UI-CHARACTERCREATE-CLASSES",
+    starAtlas = "auctionhouse-icon-favorite",
+    star = "Interface\\TargetingFrame\\UI-RaidTargetingIcon_1",
+}
+local summaryStyled = false -- the frame got the dialog look (backdrop API available)
+
+local function HasAtlas(name)
+    if not (C_Texture and C_Texture.GetAtlasInfo) then
+        return false
+    end
+    local ok, info = pcall(C_Texture.GetAtlasInfo, name)
+    return ok and type(info) == "table"
+end
+
+local function TrySetAtlas(tex, name)
+    if not (tex.SetAtlas and HasAtlas(name)) then
+        return false
+    end
+    return (pcall(tex.SetAtlas, tex, name))
+end
+
+local function TrySetFile(tex, path)
+    local ok, res = pcall(tex.SetTexture, tex, path)
+    return ok and res ~= false
+end
+
+-- Two-color gradient on a plain texture; color 1 is the left / bottom end. Falls back to the flat average.
+local function Gradient(tex, orient, r1, g1, b1, a1, r2, g2, b2, a2)
+    tex:SetColorTexture(1, 1, 1, 1)
+    if CreateColor and tex.SetGradient
+        and pcall(tex.SetGradient, tex, orient, CreateColor(r1, g1, b1, a1), CreateColor(r2, g2, b2, a2)) then
+        return
+    end
+    if tex.SetGradientAlpha and pcall(tex.SetGradientAlpha, tex, orient, r1, g1, b1, a1, r2, g2, b2, a2) then
+        return
+    end
+    tex:SetColorTexture((r1 + r2) / 2, (g1 + g2) / 2, (b1 + b2) / 2, (a1 + a2) / 2)
+end
+
+-- class icon: the client's class atlas, else the character creation sheet, else nothing
+local function SetClassIcon(tex, class)
+    if UsableName(class) then
+        if TrySetAtlas(tex, "classicon-" .. class:lower()) then
+            tex:Show()
+            return
+        end
+        local c = type(CLASS_ICON_TCOORDS) == "table" and CLASS_ICON_TCOORDS[class]
+        if type(c) == "table" and type(c[4]) == "number" and TrySetFile(tex, ART.classes) then
+            local i = 0.015 -- trims the outer rim a little
+            tex:SetTexCoord(c[1] + i, c[2] - i, c[3] + i, c[4] - i)
+            tex:Show()
+            return
+        end
+    end
+    tex:Hide()
+end
+
+local function ItemTexture(link)
+    local getInfo = (C_Item and C_Item.GetItemInfoInstant) or GetItemInfoInstant
+    if getInfo then
+        local ok, _, _, _, _, icon = pcall(getInfo, link)
+        if ok and (PlainNumber(icon) or UsableName(icon)) then
+            return icon
+        end
+    end
+    return "Interface\\Icons\\INV_Misc_QuestionMark"
+end
+
+-- r, g, b of the item's quality, and the quality number when the client knows it
+local function ItemQualityColorRaw(link)
+    local getInfo = (C_Item and C_Item.GetItemInfo) or GetItemInfo
+    local quality
+    if getInfo then
+        local ok, _, _, q = pcall(getInfo, link)
+        if ok and PlainNumber(q) then
+            quality = q
+        end
+    end
+    if quality then
+        local c = type(ITEM_QUALITY_COLORS) == "table" and ITEM_QUALITY_COLORS[quality]
+        if type(c) == "table" and type(c.r) == "number" then
+            return c.r, c.g, c.b, quality
+        end
+        local getColor = (C_Item and C_Item.GetItemQualityColor) or GetItemQualityColor
+        if getColor then
+            local ok, r, g, b = pcall(getColor, quality)
+            if ok and type(r) == "number" and type(g) == "number" and type(b) == "number" then
+                return r, g, b, quality
+            end
+        end
+    end
+    -- the link's own color: |cffRRGGBB
+    local hex = link:match("|c%x%x(%x%x%x%x%x%x)")
+    if hex then
+        return tonumber(hex:sub(1, 2), 16) / 255, tonumber(hex:sub(3, 4), 16) / 255, tonumber(hex:sub(5, 6), 16) / 255
+    end
+    return 0.62, 0.62, 0.62
+end
+
+-- Item borders are the quality color, toned down so they do not glow: a flat edge at 55 % (flat look), or the
+-- game's icon frame tinted at 75 %. Common items get a neutral grey frame; epic and better a faint glow.
+local BORDER_DIM, FRAME_DIM = 0.55, 0.75
+local function StyleItemBorder(w, link)
+    local r, g, b, q = ItemQualityColorRaw(link)
+    if not w.styled then
+        w.border:SetColorTexture(r * BORDER_DIM, g * BORDER_DIM, b * BORDER_DIM, 0.95)
+        return
+    end
+    if (q and q <= 1) or (not q and r > 0.9 and g > 0.9 and b > 0.9) then
+        w.border:SetVertexColor(0.42, 0.42, 0.42, 0.85)
+    else
+        w.border:SetVertexColor(r * FRAME_DIM, g * FRAME_DIM, b * FRAME_DIM, 0.9)
+    end
+    if w.glow then
+        if q and q >= 4 then
+            w.glow:SetVertexColor(r, g, b, 0.18)
+            w.glow:Show()
+        else
+            w.glow:Hide()
+        end
+    end
+end
+
+-- Icon slot on a widget: dark rim (depth), icon, quality frame. Returns true with the game's icon frame art,
+-- false for the flat look (a colored square behind a slightly smaller icon). size = edge length of the slot.
+local function MakeSlot(w, anchor, size)
+    w.icon = w:CreateTexture(nil, "ARTWORK")
+    w.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    w.border = w:CreateTexture(nil, "OVERLAY")
+    w.border:SetSize(size, size)
+    anchor(w.border)
+    w.styled = summaryStyled and TrySetFile(w.border, ART.iconFrame)
+    if w.styled then
+        w.icon:SetAllPoints(w.border)
+        local rim = w:CreateTexture(nil, "BACKGROUND", nil, 1)
+        rim:SetPoint("TOPLEFT", w.border, "TOPLEFT", -1, 1)
+        rim:SetPoint("BOTTOMRIGHT", w.border, "BOTTOMRIGHT", 1, -1)
+        rim:SetColorTexture(0, 0, 0, 0.8)
+    else
+        w.border:SetDrawLayer("BACKGROUND", 1)
+        local inset = size >= 24 and 2 or 1.5
+        w.icon:SetPoint("TOPLEFT", w.border, "TOPLEFT", inset, -inset)
+        w.icon:SetPoint("BOTTOMRIGHT", w.border, "BOTTOMRIGHT", -inset, inset)
+    end
+    return w.styled
+end
+
+local function FormatDuration(sec)
+    sec = math.max(0, math.floor((sec or 0) + 0.5))
+    local h, m, s = math.floor(sec / 3600), math.floor(sec % 3600 / 60), sec % 60
+    if h > 0 then
+        return string.format("%d:%02d:%02d", h, m, s)
+    end
+    return string.format("%d:%02d", m, s)
+end
+
+local function SetClassColor(fs, class)
+    local c = ClassColor(class)
+    if c and type(c.r) == "number" then
+        fs:SetTextColor(c.r, c.g, c.b)
+    else
+        fs:SetTextColor(1, 1, 1)
+    end
+end
+
+-- tooltip, shift-click (link into chat), ctrl-click (dressing room) for an item tile or a details row
+local function ItemButtonEnter(self)
+    if not self.link or not GameTooltip then
+        return
+    end
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    pcall(GameTooltip.SetHyperlink, GameTooltip, self.link)
+    GameTooltip:Show()
+end
+
+local function ItemButtonLeave()
+    if GameTooltip then
+        GameTooltip:Hide()
+    end
+end
+
+local function ItemButtonClick(self)
+    local link = self.link
+    if not link then
+        return
+    end
+    if HandleModifiedItemClick then
+        pcall(HandleModifiedItemClick, link)
+    elseif IsShiftKeyDown and IsShiftKeyDown() then
+        local insert = ChatEdit_InsertLink or (ChatFrameUtil and ChatFrameUtil.InsertLink)
+        if insert then
+            pcall(insert, link)
+        end
+    end
+end
+
+-- click on a player name: whisper
+local function NameClick(self)
+    local name = self.full
+    if not name or self.isSelf then
+        return
+    end
+    if ChatFrame_SendTell then
+        pcall(ChatFrame_SendTell, name)
+    elseif ChatFrameUtil and ChatFrameUtil.SendTell then
+        pcall(ChatFrameUtil.SendTell, name)
+    end
+end
+
+-- Reused widgets: each kind has a list; a render hides them all and takes what it needs from the front.
+local pools = {}
+local function Acquire(kind, make)
+    local p = pools[kind]
+    if not p then
+        p = { list = {}, used = 0 }
+        pools[kind] = p
+    end
+    p.used = p.used + 1
+    local w = p.list[p.used]
+    if not w then
+        w = make()
+        p.list[p.used] = w
+    end
+    w:ClearAllPoints()
+    w:Show()
+    return w
+end
+
+local function ReleaseAll()
+    for _, p in pairs(pools) do
+        for i = 1, #p.list do
+            p.list[i]:Hide()
+        end
+        p.used = 0
+    end
+end
+
+-- full-width background of one row: zebra stripe, your own row (gold gradient + edge), or a column header strip
+local function MakeBand()
+    local f = CreateFrame("Frame", nil, summaryContent)
+    f:SetFrameLevel(summaryContent:GetFrameLevel()) -- below the tiles and names
+    f.bg = f:CreateTexture(nil, "BACKGROUND")
+    f.bg:SetAllPoints()
+    f.glow = f:CreateTexture(nil, "BACKGROUND", nil, 1)
+    f.glow:SetAllPoints()
+    f.edge = f:CreateTexture(nil, "BORDER")
+    f.edge:SetWidth(2)
+    f.edge:SetPoint("TOPLEFT")
+    f.edge:SetPoint("BOTTOMLEFT")
+    f.line = f:CreateTexture(nil, "BORDER")
+    f.line:SetHeight(1)
+    f.line:SetPoint("BOTTOMLEFT")
+    f.line:SetPoint("BOTTOMRIGHT")
+    return f
+end
+
+local function PlaceBand(y, h, kind)
+    local band = Acquire("band", MakeBand)
+    band:SetPoint("TOPLEFT", summaryContent, "TOPLEFT", 0, -y)
+    band:SetPoint("TOPRIGHT", summaryContent, "TOPRIGHT", 0, -y)
+    band:SetHeight(h)
+    band.glow:Hide()
+    band.edge:Hide()
+    band.line:Hide()
+    if kind == "self" then
+        band.bg:SetColorTexture(GOLD_R, GOLD_G, GOLD_B, 0.035)
+        Gradient(band.glow, "HORIZONTAL", GOLD_R, GOLD_G, GOLD_B, 0.20, GOLD_R, GOLD_G, GOLD_B, 0)
+        band.glow:Show()
+        band.edge:SetColorTexture(GOLD_R, GOLD_G, GOLD_B, 0.85)
+        band.edge:Show()
+    elseif kind == "head" then
+        band.bg:SetColorTexture(0, 0, 0, 0.4)
+        band.line:SetColorTexture(GOLD_R, GOLD_G, GOLD_B, 0.3)
+        band.line:Show()
+    else
+        band.bg:SetColorTexture(1, 1, 1, 0.03)
+    end
+    return band
+end
+
+local function MakeTile()
+    local b = CreateFrame("Button", nil, summaryContent)
+    b:SetSize(SUMMARY_TILE, SUMMARY_TILE)
+    if MakeSlot(b, function(t) t:SetPoint("CENTER") end, SUMMARY_TILE) then
+        b.glow = b:CreateTexture(nil, "OVERLAY", nil, 1)
+        b.glow:SetSize(SUMMARY_TILE * 1.8, SUMMARY_TILE * 1.8)
+        b.glow:SetPoint("CENTER")
+        if TrySetFile(b.glow, ART.glow) then
+            b.glow:SetBlendMode("ADD")
+        else
+            b.glow = nil
+        end
+    end
+    local hl = b:CreateTexture(nil, "HIGHLIGHT")
+    hl:SetAllPoints()
+    if TrySetFile(hl, ART.hilight) then
+        hl:SetBlendMode("ADD")
+    else
+        hl:SetColorTexture(1, 1, 1, 0.15)
+    end
+    b:SetScript("OnEnter", ItemButtonEnter)
+    b:SetScript("OnLeave", ItemButtonLeave)
+    b:SetScript("OnClick", ItemButtonClick)
+    return b
+end
+
+-- player name with the class icon in front of it
+local function MakeName()
+    local b = CreateFrame("Button", nil, summaryContent)
+    b.cls = b:CreateTexture(nil, "ARTWORK")
+    b.cls:SetSize(16, 16)
+    b.cls:SetPoint("LEFT", 0, 0)
+    b.text = b:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    b.text:SetPoint("LEFT", 22, 0)
+    b.text:SetPoint("RIGHT", 0, 0)
+    b.text:SetJustifyH("LEFT")
+    b.text:SetWordWrap(false)
+    b:SetScript("OnClick", NameClick)
+    return b
+end
+
+local function MakeText()
+    local fs = summaryContent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    fs:SetWordWrap(false)
+    return fs
+end
+
+-- marker of the run's top looter (strictly the most items, at least two)
+local function MakeStar()
+    local t = summaryContent:CreateTexture(nil, "OVERLAY")
+    t:SetSize(12, 12)
+    if not TrySetAtlas(t, ART.starAtlas) then
+        TrySetFile(t, ART.star)
+    end
+    return t
+end
+
+local function MakeDetailRow()
+    local b = CreateFrame("Button", nil, summaryContent)
+    b:SetHeight(DETAIL_ROW)
+    local hl = b:CreateTexture(nil, "HIGHLIGHT")
+    hl:SetAllPoints()
+    hl:SetColorTexture(GOLD_R, GOLD_G, GOLD_B, 0.08)
+    MakeSlot(b, function(t) t:SetPoint("LEFT", 4, 0) end, 20)
+    b.item = b:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    b.item:SetPoint("LEFT", 32, 0)
+    b.item:SetWidth(204)
+    b.item:SetJustifyH("LEFT")
+    b.item:SetWordWrap(false)
+    b.cls = b:CreateTexture(nil, "ARTWORK")
+    b.cls:SetSize(14, 14)
+    b.cls:SetPoint("LEFT", 244, 0)
+    b.winner = b:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    b.winner:SetPoint("LEFT", 262, 0)
+    b.winner:SetWidth(100)
+    b.winner:SetJustifyH("LEFT")
+    b.winner:SetWordWrap(false)
+    b.roll = b:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    b.roll:SetPoint("RIGHT", -6, 0)
+    b.roll:SetJustifyH("RIGHT")
+    b.roll:SetWordWrap(false)
+    b:SetScript("OnEnter", ItemButtonEnter)
+    b:SetScript("OnLeave", ItemButtonLeave)
+    b:SetScript("OnClick", ItemButtonClick)
+    return b
+end
+
+-- Players of the run with the items they won: winners first (most items), then the others in join order.
+local function SummaryPlayers(run, mineOnly)
+    local list, byPlayer = {}, {}
+    for _, p in pairs(run.roster) do
+        if not mineOnly or p.isSelf then
+            local e = { p = p, drops = {} }
+            byPlayer[p] = e
+            list[#list + 1] = e
+        end
+    end
+    for _, d in ipairs(run.drops) do
+        local e = byPlayer[d.player]
+        if e then
+            e.drops[#e.drops + 1] = d
+        end
+    end
+    table.sort(list, function(a, b)
+        if #a.drops ~= #b.drops then return #a.drops > #b.drops end
+        return a.p.order < b.p.order
+    end)
+    return list
+end
+
+-- Board view: [class icon] name | item tiles (wrapping) | [star] count. Returns the content height.
+local function RenderBoard(run, mineOnly, width)
+    local tilesX = SUMMARY_SIDE + SUMMARY_NAME_COL + 8
+    local step = SUMMARY_TILE + SUMMARY_TILE_GAP
+    local perLine = math.max(1, math.floor((width - tilesX - SUMMARY_SIDE - 36 + SUMMARY_TILE_GAP) / step))
+    local y = 0
+    local players = SummaryPlayers(run, mineOnly)
+    local first, second = players[1], players[2]
+    local leader = first and #first.drops >= 2 and (not second or #second.drops < #first.drops) and first
+    for idx, e in ipairs(players) do
+        local lines = math.max(1, math.ceil(#e.drops / perLine))
+        local rowH = lines * SUMMARY_TILE + (lines - 1) * SUMMARY_TILE_GAP + 2 * SUMMARY_ROW_PAD
+        local top = -y - SUMMARY_ROW_PAD
+        if e.p.isSelf then
+            PlaceBand(y, rowH, "self")
+        elseif idx % 2 == 0 then
+            PlaceBand(y, rowH, "zebra")
+        end
+        local name = Acquire("name", MakeName)
+        name:SetSize(SUMMARY_NAME_COL, SUMMARY_TILE)
+        name:SetPoint("TOPLEFT", summaryContent, "TOPLEFT", SUMMARY_SIDE, top)
+        name.text:SetText(e.p.short)
+        SetClassColor(name.text, e.p.class)
+        SetClassIcon(name.cls, e.p.class)
+        name.full, name.isSelf = e.p.full, e.p.isSelf
+        if #e.drops == 0 then
+            local none = Acquire("text", MakeText)
+            none:SetPoint("LEFT", summaryContent, "TOPLEFT", tilesX, top - SUMMARY_TILE / 2)
+            none:SetText("-")
+            none:SetTextColor(0.42, 0.41, 0.37)
+        else
+            for i, d in ipairs(e.drops) do
+                local tile = Acquire("tile", MakeTile)
+                local line, col = math.floor((i - 1) / perLine), (i - 1) % perLine
+                tile:SetPoint("TOPLEFT", summaryContent, "TOPLEFT", tilesX + col * step, top - line * step)
+                tile.link = d.item
+                tile.icon:SetTexture(ItemTexture(d.item))
+                StyleItemBorder(tile, d.item)
+            end
+            local count = Acquire("text", MakeText)
+            count:SetPoint("RIGHT", summaryContent, "TOPRIGHT", -SUMMARY_SIDE, top - SUMMARY_TILE / 2)
+            count:SetText("\195\151" .. #e.drops) -- multiplication sign + number
+            count:SetTextColor(GOLD_R, GOLD_G, GOLD_B)
+            if e == leader then
+                local star = Acquire("star", MakeStar)
+                star:SetPoint("RIGHT", count, "LEFT", -3, 0)
+            end
+        end
+        y = y + rowH
+    end
+    return y
+end
+
+-- Details view: a column header strip, then one row per item: [icon] item, [class icon] winner, roll icon
+-- (+ "OS") and number. Returns the height.
+local function RenderDetails(run, mineOnly, width)
+    PlaceBand(0, DETAIL_HEAD, "head")
+    local heads = { { "Item", "LEFT", 32 }, { "Winner", "LEFT", 244 }, { "Roll", "RIGHT", -6 } }
+    for _, h in ipairs(heads) do
+        local fs = Acquire("text", MakeText)
+        fs:SetPoint(h[2], summaryContent, "TOP" .. h[2], h[3], -DETAIL_HEAD / 2)
+        fs:SetText(h[1])
+        fs:SetTextColor(GOLD_R, GOLD_G, GOLD_B)
+    end
+    local y, n = DETAIL_HEAD + 2, 0
+    for _, d in ipairs(run.drops) do
+        if not mineOnly or d.player.isSelf then
+            n = n + 1
+            if d.player.isSelf then
+                PlaceBand(y, DETAIL_ROW, "self")
+            elseif n % 2 == 0 then
+                PlaceBand(y, DETAIL_ROW, "zebra")
+            end
+            local row = Acquire("detail", MakeDetailRow)
+            row:SetPoint("TOPLEFT", summaryContent, "TOPLEFT", 0, -y)
+            row:SetWidth(width)
+            row.link = d.item
+            row.icon:SetTexture(ItemTexture(d.item))
+            StyleItemBorder(row, d.item)
+            row.item:SetText(d.item)
+            row.winner:SetText(d.player.short)
+            SetClassColor(row.winner, d.player.class)
+            SetClassIcon(row.cls, d.player.class)
+            local roll = (d.kind and KIND_ICON[d.kind] or "")
+                .. (d.tag and (" |cff" .. (LABEL_COLOR[d.kind] or "aaaaaa") .. d.tag .. "|r") or "")
+                .. (d.roll and (" " .. d.roll) or "")
+            row.roll:SetText(roll ~= "" and roll or "|cff6c695f-|r")
+            y = y + DETAIL_ROW
+        end
+    end
+    return y
+end
+
+function RenderSummary()
+    local fr, run = summaryFrame, summaryShowing
+    if not fr or not run then
+        return
+    end
+    ReleaseAll()
+    local mineOnly = db and db.summary == "mine"
+    local count = VisibleCount(run, mineOnly)
+    fr.sub:SetText(run.name .. SUMMARY_DOT .. run.rosterCount .. (run.rosterCount == 1 and " player" or " players"))
+    fr.dur:SetText(FormatDuration((run.endTime or GetTime()) - run.startTime))
+    local width = summaryDetails and SUMMARY_DETAILS_WIDTH or SUMMARY_WIDTH
+    fr:SetWidth(width)
+    local inner = width - 2 * SUMMARY_PAD - 8
+    summaryContent:SetWidth(inner)
+    local h
+    if summaryDetails then
+        h = RenderDetails(run, mineOnly, inner)
+    else
+        h = RenderBoard(run, mineOnly, inner)
+    end
+    summaryContent:SetHeight(math.max(h, 1))
+    fr:SetHeight(SUMMARY_TOP + 8 + math.min(math.max(h, 20), SUMMARY_MAX_BODY) + SUMMARY_FOOT)
+    fr.scroll:SetVerticalScroll(0)
+    fr.count:SetText((count == 1 and "1 item" or (count .. " items")) .. (mineOnly and " (yours)" or ""))
+    fr.detailsBtn:SetText(summaryDetails and "Board" or "Details")
+end
+
+-- 1 pixel frame of four textures (flat look; no template needed)
+local function AddEdges(parent, layer, r, g, b, a)
+    local edges = {
+        { "TOPLEFT", "TOPRIGHT", nil, 1 }, { "BOTTOMLEFT", "BOTTOMRIGHT", nil, 1 },
+        { "TOPLEFT", "BOTTOMLEFT", 1, nil }, { "TOPRIGHT", "BOTTOMRIGHT", 1, nil },
+    }
+    for _, e in ipairs(edges) do
+        local t = parent:CreateTexture(nil, layer)
+        t:SetColorTexture(r, g, b, a)
+        t:SetPoint(e[1])
+        t:SetPoint(e[2])
+        if e[3] then t:SetWidth(e[3]) end
+        if e[4] then t:SetHeight(e[4]) end
+    end
+end
+
+-- The game's red panel button with the dialog look; otherwise a flat dark button with a gold edge.
+local function MakeButton(parent, text, width)
+    if summaryStyled then
+        local ok, b = pcall(CreateFrame, "Button", nil, parent, "UIPanelButtonTemplate")
+        if ok and b then
+            b:SetSize(width, 22)
+            b:SetText(text)
+            return b
+        end
+    end
+    local b = CreateFrame("Button", nil, parent)
+    b:SetSize(width, 22)
+    local bg = b:CreateTexture(nil, "BACKGROUND")
+    bg:SetAllPoints()
+    bg:SetColorTexture(0.13, 0.115, 0.08, 1)
+    AddEdges(b, "BORDER", GOLD_R, GOLD_G, GOLD_B, 0.55)
+    local hl = b:CreateTexture(nil, "HIGHLIGHT")
+    hl:SetAllPoints()
+    hl:SetColorTexture(GOLD_R, GOLD_G, GOLD_B, 0.16)
+    local fs = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    fs:SetPoint("CENTER")
+    b:SetFontString(fs)
+    b:SetText(text)
+    return b
+end
+
+local function SaveSummaryPos(self)
+    self:StopMovingOrSizing()
+    local point, _, relPoint, x, y = self:GetPoint(1)
+    if db and type(point) == "string" and type(x) == "number" and type(y) == "number" then
+        db.summaryPos = { point = point, relPoint = type(relPoint) == "string" and relPoint or point, x = x, y = y }
+    end
+end
+
+local function PlaceSummaryFrame(fr)
+    fr:ClearAllPoints()
+    local p = db and db.summaryPos
+    if type(p) == "table" and type(p.point) == "string" and type(p.relPoint) == "string"
+        and type(p.x) == "number" and type(p.y) == "number" then
+        if pcall(fr.SetPoint, fr, p.point, UIParent, p.relPoint, p.x, p.y) then
+            return
+        end
+        fr:ClearAllPoints()
+    end
+    fr:SetPoint("CENTER", UIParent, "CENTER", 0, 120)
+end
+
+-- Dialog look: dialog border + dark background, a warm sheen under the title and a shade at the bottom,
+-- and the title plate (3 slices of the dialog header art) over the top edge. Returns the title font string.
+local function DecorateDialog(fr)
+    local ok = pcall(fr.SetBackdrop, fr, {
+        bgFile = ART.dialogBg,
+        edgeFile = ART.dialogEdge,
+        tile = true, tileSize = 32, edgeSize = 24,
+        insets = { left = 7, right = 7, top = 7, bottom = 7 },
+    })
+    if not ok then
+        return nil
+    end
+    pcall(fr.SetBackdropColor, fr, 1, 1, 1, 0.96)
+    pcall(fr.SetBackdropBorderColor, fr, 1, 0.93, 0.8, 1) -- a touch warmer than the stock grey
+    local sheen = fr:CreateTexture(nil, "BACKGROUND", nil, 2)
+    sheen:SetPoint("TOPLEFT", 7, -7)
+    sheen:SetPoint("TOPRIGHT", -7, -7)
+    sheen:SetHeight(72)
+    Gradient(sheen, "VERTICAL", GOLD_R, GOLD_G, GOLD_B, 0, GOLD_R, GOLD_G, GOLD_B, 0.08)
+    local shade = fr:CreateTexture(nil, "BACKGROUND", nil, 2)
+    shade:SetPoint("BOTTOMLEFT", 7, 7)
+    shade:SetPoint("BOTTOMRIGHT", -7, 7)
+    shade:SetHeight(56)
+    Gradient(shade, "VERTICAL", 0, 0, 0, 0.4, 0, 0, 0, 0)
+
+    local title = fr:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    title:SetText("WHO WON THAT")
+    local plate = fr:CreateTexture(nil, "ARTWORK")
+    if TrySetFile(plate, ART.header) then
+        plate:SetTexCoord(0.31, 0.67, 0, 0.63)
+        plate:SetPoint("TOP", 0, 12)
+        plate:SetSize(math.max((title:GetStringWidth() or 0) + 24, 110), 40)
+        local left = fr:CreateTexture(nil, "ARTWORK")
+        TrySetFile(left, ART.header)
+        left:SetTexCoord(0.21, 0.31, 0, 0.63)
+        left:SetSize(30, 40)
+        left:SetPoint("RIGHT", plate, "LEFT")
+        local right = fr:CreateTexture(nil, "ARTWORK")
+        TrySetFile(right, ART.header)
+        right:SetTexCoord(0.67, 0.77, 0, 0.63)
+        right:SetSize(30, 40)
+        right:SetPoint("LEFT", plate, "RIGHT")
+        title:SetPoint("TOP", plate, "TOP", 0, -14)
+    else
+        plate:Hide()
+        title:SetPoint("TOP", 0, -16)
+    end
+    return title
+end
+
+-- Flat look: dark rectangle with a thin gold edge and a header band with the centered title.
+local function DecorateFlat(fr)
+    local bg = fr:CreateTexture(nil, "BACKGROUND")
+    bg:SetAllPoints()
+    bg:SetColorTexture(0.06, 0.07, 0.09, 0.95)
+    AddEdges(fr, "BORDER", GOLD_R, GOLD_G, GOLD_B, 0.8)
+    local headBg = fr:CreateTexture(nil, "BORDER")
+    headBg:SetColorTexture(0.15, 0.115, 0.05, 1)
+    headBg:SetPoint("TOPLEFT", 1, -1)
+    headBg:SetPoint("TOPRIGHT", -1, -1)
+    headBg:SetHeight(SUMMARY_HEADER)
+    local headLine = fr:CreateTexture(nil, "BORDER")
+    headLine:SetColorTexture(GOLD_R, GOLD_G, GOLD_B, 0.6)
+    headLine:SetPoint("TOPLEFT", 1, -(SUMMARY_HEADER + 1))
+    headLine:SetPoint("TOPRIGHT", -1, -(SUMMARY_HEADER + 1))
+    headLine:SetHeight(1)
+    local title = fr:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    title:SetPoint("CENTER", fr, "TOP", 0, -(SUMMARY_HEADER / 2) - 1)
+    title:SetText("WHO WON THAT")
+    title:SetTextColor(GOLD_R, GOLD_G, GOLD_B)
+end
+
+-- Sunken list panel: darker fill, an inner shadow under the top edge, dark top / sides and a faint light
+-- bottom edge. Returns the scroll frame inside it.
+local function MakeListPanel(fr)
+    local panel = CreateFrame("Frame", nil, fr)
+    panel:SetPoint("TOPLEFT", SUMMARY_PAD, -SUMMARY_TOP)
+    panel:SetPoint("BOTTOMRIGHT", -SUMMARY_PAD, SUMMARY_FOOT)
+    local fill = panel:CreateTexture(nil, "BACKGROUND")
+    fill:SetAllPoints()
+    fill:SetColorTexture(0, 0, 0, summaryStyled and 0.42 or 0.22)
+    local shadow = panel:CreateTexture(nil, "BACKGROUND", nil, 1)
+    shadow:SetPoint("TOPLEFT")
+    shadow:SetPoint("TOPRIGHT")
+    shadow:SetHeight(10)
+    Gradient(shadow, "VERTICAL", 0, 0, 0, 0, 0, 0, 0, 0.45)
+    local edges = {
+        { "TOPLEFT", "TOPRIGHT", nil, 1, 0, 0, 0, 0.7 }, { "BOTTOMLEFT", "BOTTOMRIGHT", nil, 1, 1, 1, 1, 0.07 },
+        { "TOPLEFT", "BOTTOMLEFT", 1, nil, 0, 0, 0, 0.45 }, { "TOPRIGHT", "BOTTOMRIGHT", 1, nil, 0, 0, 0, 0.45 },
+    }
+    for _, e in ipairs(edges) do
+        local t = panel:CreateTexture(nil, "BORDER")
+        t:SetColorTexture(e[5], e[6], e[7], e[8])
+        t:SetPoint(e[1])
+        t:SetPoint(e[2])
+        if e[3] then t:SetWidth(e[3]) end
+        if e[4] then t:SetHeight(e[4]) end
+    end
+    local scroll = CreateFrame("ScrollFrame", nil, panel)
+    scroll:SetPoint("TOPLEFT", 4, -4)
+    scroll:SetPoint("BOTTOMRIGHT", -4, 4)
+    return scroll
+end
+
+local function CreateSummaryFrame()
+    local fr
+    if BackdropTemplateMixin then
+        local ok, f = pcall(CreateFrame, "Frame", SUMMARY_FRAME_NAME, UIParent, "BackdropTemplate")
+        if ok then
+            fr = f
+        end
+    end
+    fr = fr or CreateFrame("Frame", SUMMARY_FRAME_NAME, UIParent)
+    fr:SetSize(SUMMARY_WIDTH, 200)
+    fr:SetFrameStrata("HIGH")
+    fr:SetClampedToScreen(true)
+    fr:SetMovable(true)
+    fr:EnableMouse(true)
+    fr:RegisterForDrag("LeftButton")
+    fr:SetScript("OnDragStart", fr.StartMoving)
+    fr:SetScript("OnDragStop", SaveSummaryPos)
+    fr:Hide()
+
+    summaryStyled = fr.SetBackdrop ~= nil and DecorateDialog(fr) ~= nil
+    if not summaryStyled then
+        DecorateFlat(fr)
+    end
+
+    fr.dur = fr:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    fr.dur:SetPoint("TOPRIGHT", -(SUMMARY_PAD + 4), SUMMARY_SUB_Y)
+    fr.dur:SetTextColor(MUTED_R, MUTED_G, MUTED_B)
+
+    fr.sub = fr:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    fr.sub:SetPoint("TOPLEFT", SUMMARY_PAD + 4, SUMMARY_SUB_Y)
+    fr.sub:SetPoint("RIGHT", fr.dur, "LEFT", -8, 0)
+    fr.sub:SetJustifyH("LEFT")
+    fr.sub:SetWordWrap(false)
+    fr.sub:SetTextColor(MUTED_R, MUTED_G, MUTED_B)
+
+    local scroll = MakeListPanel(fr)
+    summaryContent = CreateFrame("Frame", nil, scroll)
+    summaryContent:SetSize(SUMMARY_WIDTH - 2 * SUMMARY_PAD - 8, 1)
+    scroll:SetScrollChild(summaryContent)
+    scroll:EnableMouseWheel(true)
+    scroll:SetScript("OnMouseWheel", function(self, delta)
+        local max = math.max(0, (summaryContent:GetHeight() or 0) - (self:GetHeight() or 0))
+        local v = (self:GetVerticalScroll() or 0) - delta * 30
+        self:SetVerticalScroll(math.min(math.max(v, 0), max))
+    end)
+    fr.scroll = scroll
+
+    fr.count = fr:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    fr.count:SetPoint("BOTTOMLEFT", SUMMARY_PAD + 4, 19)
+    fr.count:SetTextColor(MUTED_R, MUTED_G, MUTED_B)
+
+    local function Close()
+        fr:Hide()
+    end
+    local close = MakeButton(fr, "Close", 80)
+    close:SetPoint("BOTTOMRIGHT", -(SUMMARY_PAD + 2), 13)
+    close:SetScript("OnClick", Close)
+    fr.detailsBtn = MakeButton(fr, "Details", 80)
+    fr.detailsBtn:SetPoint("RIGHT", close, "LEFT", -6, 0)
+    fr.detailsBtn:SetScript("OnClick", function()
+        summaryDetails = not summaryDetails
+        RenderSummary()
+    end)
+    if summaryStyled then
+        local ok, x = pcall(CreateFrame, "Button", nil, fr, "UIPanelCloseButton")
+        if ok and x then
+            x:SetPoint("TOPRIGHT", -2, -2)
+            x:SetScript("OnClick", Close)
+        end
+    end
+
+    if type(UISpecialFrames) == "table" then
+        table.insert(UISpecialFrames, SUMMARY_FRAME_NAME) -- Esc closes it
+    end
+    PlaceSummaryFrame(fr)
+    return fr
+end
+
+local function OpenSummary(run)
+    if not summaryFrame then
+        local ok, fr = pcall(CreateSummaryFrame)
+        if not ok or not fr then
+            if geterrorhandler and not ok then
+                geterrorhandler()(fr)
+            end
+            return
+        end
+        summaryFrame = fr
+    end
+    summaryShowing = run
+    summaryLast = run
+    RenderSummary()
+    summaryFrame:Show()
+end
+
+local function InLockdown()
+    return (InCombatLockdown and InCombatLockdown()) or (IsEncounterInProgress and IsEncounterInProgress()) or false
+end
+
+-- Opens the window now, or once combat / the encounter is over. auto = opened by the end of the dungeon
+-- (respects the option and needs at least one item); otherwise asked for with /wwt summary.
+local function ShowSummaryWhenSafe(run, auto)
+    if not run or not db then
+        return
+    end
+    if auto and (db.summary == "off" or VisibleCount(run, db.summary == "mine") == 0) then
+        return
+    end
+    if InLockdown() then
+        local first = summaryWaiting == nil
+        summaryWaiting, summaryWaitingAuto = run, auto
+        if first and C_Timer and C_Timer.After then
+            local function Retry()
+                if not summaryWaiting then
+                    return
+                end
+                if InLockdown() then
+                    C_Timer.After(2, Retry)
+                    return
+                end
+                local r, a = summaryWaiting, summaryWaitingAuto
+                summaryWaiting, summaryWaitingAuto = nil, nil
+                ShowSummaryWhenSafe(r, a)
+            end
+            C_Timer.After(2, Retry)
+        end
+        return
+    end
+    OpenSummary(run)
+end
+
+local function ShowSummarySoon(run, delay)
+    if C_Timer and C_Timer.After then
+        C_Timer.After(delay, function() ShowSummaryWhenSafe(run, true) end)
+    else
+        ShowSummaryWhenSafe(run, true)
+    end
+end
+
+-- /wwt summary
+local function SummaryCommand()
+    local run = (summaryRun and #summaryRun.drops > 0) and summaryRun or summaryLast
+    if not run then
+        Print("No loot summary yet. It fills with the items won during a dungeon run.")
+        return
+    end
+    if InLockdown() then
+        Print("The loot summary opens when combat ends.")
+    end
+    ShowSummaryWhenSafe(run, false)
+end
+
+-- ----- end of the dungeon -----
+-- True if the encounter is the last one the Encounter Journal lists for this instance (its final boss).
+-- The journal instance is passed to EJ_GetEncounterInfoByIndex directly, so the Encounter Journal's selected
+-- instance is left alone (EJ_SelectInstance would change what an open journal shows). Only if that returns
+-- nothing and the journal is not open, the instance is selected as a fallback. Results are cached per instance.
+local finalEncounterOf = {} -- [journalInstanceID] = dungeonEncounterID of its last journal encounter
+local function LastJournalEncounter(journalID)
+    local last
+    for i = 1, 40 do
+        local name, _, _, _, _, _, dungeonEncounterID = EJ_GetEncounterInfoByIndex(i, journalID)
+        if not name then
+            break
+        end
+        last = dungeonEncounterID
+    end
+    return PlainNumber(last) and last or nil
+end
+
+local function IsFinalEncounter(encounterID)
+    if not (EJ_GetInstanceForMap and EJ_GetEncounterInfoByIndex and C_Map and C_Map.GetBestMapForUnit) then
+        return false
+    end
+    local ok, result = pcall(function()
+        local mapID = C_Map.GetBestMapForUnit("player")
+        local journalID = PlainNumber(mapID) and EJ_GetInstanceForMap(mapID)
+        if not PlainNumber(journalID) or journalID == 0 then
+            return false
+        end
+        local last = finalEncounterOf[journalID]
+        if not last then
+            last = LastJournalEncounter(journalID)
+            local journal = _G.EncounterJournal
+            if not last and EJ_SelectInstance and not (journal and journal.IsShown and journal:IsShown()) then
+                EJ_SelectInstance(journalID)
+                last = LastJournalEncounter(journalID)
+            end
+            finalEncounterOf[journalID] = last
+        end
+        return last ~= nil and last == encounterID
+    end)
+    return ok and result == true
+end
+
+-- Rolls that may still finish: an open roll window, a drop just recorded, or a drop of the last boss without
+-- a result yet (also "no drops yet": nobody has looted the boss).
+local function RollsStillOpen(run)
+    if GetActiveLootRollIDs then
+        local ok, ids = pcall(GetActiveLootRollIDs)
+        if ok and type(ids) == "table" and #ids > 0 then
+            return true
+        end
+    end
+    if run.lastRecordAt and GetTime() - run.lastRecordAt < 4 then
+        return true
+    end
+    local enc = run.lastEncounterID
+    if enc and HAS_HISTORY and C_LootHistory.GetSortedDropsForEncounter then
+        local ok, drops = pcall(C_LootHistory.GetSortedDropsForEncounter, enc)
+        if ok and type(drops) == "table" then
+            if #drops == 0 then
+                return true
+            end
+            for _, d in ipairs(drops) do
+                if type(d) == "table" and not (d.winner or d.allPassed) then
+                    return true
+                end
+            end
+        end
+    end
+    return false
+end
+
+-- The dungeon is over (final boss, LFG reward, keystone done): open the window once the last rolls settled.
+local function SummaryEnd(run, encounterID)
+    if not run or run.ended or run.left then
+        return
+    end
+    run.ended = true
+    run.endTime = GetTime()
+    if PlainNumber(encounterID) then
+        run.lastEncounterID = encounterID
+    end
+    SnapshotRoster(run)
+    if not (C_Timer and C_Timer.After) then
+        ShowSummaryWhenSafe(run, true)
+        return
+    end
+    local deadline = GetTime() + SUMMARY_MAX_WAIT
+    local function Check()
+        if summaryRun ~= run and summaryLast ~= run then
+            return -- a newer run replaced it and this one had no items
+        end
+        local ok, open = pcall(RollsStillOpen, run)
+        if ok and open and GetTime() < deadline then
+            C_Timer.After(3, Check)
+            return
+        end
+        ShowSummaryWhenSafe(run, true)
+    end
+    C_Timer.After(SUMMARY_SETTLE, Check)
+end
+
+local function SummaryOnEncounterEnd(encounterID, success)
+    local run = summaryRun
+    if not run or run.left or not PlainNumber(encounterID) or (issecretvalue and issecretvalue(success)) then
+        return
+    end
+    if success ~= 1 and success ~= true then
+        return -- wipe
+    end
+    run.lastEncounterID = encounterID
+    if IsFinalEncounter(encounterID) then
+        SummaryEnd(run, encounterID)
+    end
+end
+
+-- LFG_COMPLETION_REWARD, CHALLENGE_MODE_COMPLETED, SCENARIO_COMPLETED
+local function SummaryOnCompleted(event)
+    local run = summaryRun
+    if not run or run.left then
+        return
+    end
+    if event == "SCENARIO_COMPLETED" and run.instanceType ~= "party" then
+        return
+    end
+    SummaryEnd(run, run.lastEncounterID)
+end
+
+-- Entering / leaving an instance (PLAYER_ENTERING_WORLD, ZONE_CHANGED_NEW_AREA).
+local function SummaryOnZone()
+    local id, name, instanceType = InstanceRunInfo()
+    local run = summaryRun
+    if id then
+        -- same instance: back from the graveyard / a repair trip, or a zone change inside it
+        if run and run.id == id and not (run.ended and run.left) then
+            run.left, run.leftAt = nil, nil
+            SnapshotRoster(run)
+            return
+        end
+        if run and #run.drops > 0 then
+            summaryLast = run
+        end
+        summaryRun = NewRun(id, name, instanceType)
+        SnapshotRoster(summaryRun)
+    elseif run and not run.left then
+        if UnitIsDeadOrGhost and UnitIsDeadOrGhost("player") then
+            return -- released to a graveyard outside: the run goes on
+        end
+        run.left, run.leftAt = true, GetTime()
+        -- fallback when no end of the dungeon was seen: the window opens on leaving the instance
+        if not run.ended and not run.leaveShown and #run.drops > 0 then
+            run.leaveShown = true
+            run.endTime = run.endTime or GetTime()
+            ShowSummarySoon(run, 2)
+        end
+    end
+end
+
+-- Leaving the group ends the run (a window not shown yet still opens), a new one starts if still inside.
+local function SummaryOnGroupLeft()
+    local run = summaryRun
+    if run and #run.drops > 0 then
+        summaryLast = run
+        if not run.ended and not run.leaveShown then
+            run.leaveShown = true
+            run.endTime = run.endTime or GetTime()
+            ShowSummarySoon(run, 2)
+        end
+    end
+    summaryRun = nil
+    local id, name, instanceType = InstanceRunInfo()
+    if id then
+        summaryRun = NewRun(id, name, instanceType)
+        SnapshotRoster(summaryRun)
+    end
+end
+
+-- players joining during the run (not while outside of the instance: they were not part of it)
+local function SummaryOnRosterUpdate()
+    if summaryRun and not summaryRun.left then
+        SnapshotRoster(summaryRun)
+    end
+end
+
+-- /wwt test: opens the window with made-up data (never stored as the "last" run, so /wwt summary stays honest).
+local function SummarySample()
+    local me = "You"
+    if UnitName then
+        local ok, n = pcall(UnitName, "player")
+        if ok and UsableName(n) then me = n end
+    end
+    local run = NewRun("sample", "Sample Dungeon", "party")
+    run.endTime = run.startTime + 38 * 60 + 12
+    local function Player(name, class, isSelf)
+        local p = AddRosterName(run, name, class)
+        if p and isSelf then p.isSelf = true end
+        return p
+    end
+    local pMe = Player(me, "MAGE", true)
+    local pA = Player("Madesky", "WARRIOR")
+    local pB = Player("Casandra", "PRIEST")
+    local pC = Player("Naysia", "DRUID")
+    local pD = Player("Santanico", "PALADIN")
+    local function Link(id, color, name)
+        return "|cff" .. color .. "|Hitem:" .. id .. "::::::::::::::|h[" .. name .. "]|h|r"
+    end
+    local function Drop(p, link, kind, roll, tag)
+        if p then
+            run.drops[#run.drops + 1] = { item = link, player = p, kind = kind, roll = roll, tag = tag }
+        end
+    end
+    Drop(pMe, Link(14551, "a335ee", "Edgemaster's Handguards"), "need", 94)
+    Drop(pMe, Link(11815, "a335ee", "Hand of Justice"), "greed", 71)
+    Drop(pMe, Link(13340, "0070dd", "Cape of the Black Baron"), "greed", 66)
+    Drop(pB, Link(12640, "a335ee", "Lionheart Helm"), "greed", 57)
+    Drop(pB, Link(11815, "0070dd", "Hand of Justice"), "need", 41)
+    Drop(pA, Link(14551, "a335ee", "Edgemaster's Handguards"), "need", 88)
+    Drop(pC, Link(18832, "0070dd", "Brutality Blade"), "need", 63, "OS")
+    Drop(pD, Link(14551, "1eff00", "Edgemaster's Handguards"), "greed", 22)
+    local previous = summaryLast
+    OpenSummary(run)
+    summaryLast = previous
+end
+
+return {
+    RecordWin = RecordWin,
+    Command = SummaryCommand,
+    Sample = SummarySample,
+    Refresh = function() RefreshSummaryWindow(summaryShowing) end,
+    OnZone = SummaryOnZone,
+    OnEncounterEnd = SummaryOnEncounterEnd,
+    OnCompleted = SummaryOnCompleted,
+    OnGroupLeft = SummaryOnGroupLeft,
+    OnRosterUpdate = SummaryOnRosterUpdate,
+}
+end)()
+
+-- Runs a summary handler without letting an error break the rest of the addon.
+local function SummaryCall(fn, ...)
+    local ok, err = pcall(fn, ...)
+    if not ok and geterrorhandler then
+        geterrorhandler()(err)
+    end
+end
+
 -- Every finished roll goes through here (loot history and the chat fallback alike).
 -- lootListKey is only known for loot history drops; it makes the drop claimable between addons.
 local function ScheduleDrop(info, encounterID, lootListKey)
+    SummaryCall(Summary.RecordWin, info, encounterID, lootListKey) -- remembered for the dungeon summary window
     local doneAt = GetTime()
     if AnnounceActive() and C_Timer and C_Timer.After then
         local state
@@ -1557,6 +2828,7 @@ local function Help()
     Print("/wwt help - show this help")
     Print("/wwt test - print a sample roll to the chosen chat window")
     Print("/wwt welcome - show the first-run introduction again")
+    Print("/wwt summary - open the loot summary of the current or last dungeon run")
     Print("Tip: results go to the chat tab you pick in the settings (e.g. your Party tab). That tab does not need Loot messages enabled. For a quiet chat, turn Loot off in all tabs: right-click the tab > Settings > Loot.")
 end
 
@@ -1653,6 +2925,9 @@ local function RunTest()
     else
         Print("Raw mode: the test only checks message recognition (switch format to summary to see the block).")
     end
+    -- 3) the loot summary window with sample data (shown whatever the format)
+    SummaryCall(Summary.Sample)
+    Print("The sample loot summary window is open: drag it where you like, the position is remembered.")
     Print(problems == 0 and "TEST finished: everything recognized." or ("TEST finished: problems: " .. problems))
 end
 
@@ -1676,6 +2951,8 @@ local function HandleSlash(input)
         RunTest()
     elseif cmd == "welcome" then
         Welcome()
+    elseif cmd == "summary" then
+        SummaryCall(Summary.Command)
     else
         Help()
     end
@@ -1823,6 +3100,18 @@ local function RegisterPanel()
         end)
     end
 
+    -- ===== Dungeon summary =====
+    Header("Dungeon summary")
+
+    AddChoice("summary", "Loot summary window",
+        "At the end of a dungeon (and when you leave it) a small window lists who won which item during the run. Never opens during combat. /wwt summary opens it again.", {
+            { "everyone", "Everyone", "Every player of the run with the items they won." },
+            { "mine", "Only my items", "Only the items you won." },
+            { "off", "Off", "The window does not open by itself (/wwt summary still works)." },
+        }, nil, function()
+            SummaryCall(Summary.Refresh)
+        end)
+
     -- ===== Test =====
     local panel = _G.SettingsPanel
     if CreateSettingsButtonInitializer and panel and panel.GetLayout then
@@ -1840,7 +3129,7 @@ end
 f = CreateFrame("Frame")
 f:RegisterEvent("ADDON_LOADED")
 f:RegisterEvent("PLAYER_LOGIN")
-f:SetScript("OnEvent", function(_, event, arg1, arg2, arg3, arg4)
+f:SetScript("OnEvent", function(_, event, arg1, arg2, arg3, arg4, arg5)
     if event == "ADDON_LOADED" and arg1 == ADDON then
         WhoWonThatDB = WhoWonThatDB or {}
         db = WhoWonThatDB
@@ -1859,6 +3148,12 @@ f:SetScript("OnEvent", function(_, event, arg1, arg2, arg3, arg4)
             db.announce = "all"
         elseif db.announce ~= "all" then
             db.announce = "off"
+        end
+        if db.summary ~= "off" and db.summary ~= "mine" and db.summary ~= "everyone" then
+            db.summary = DEFAULTS.summary
+        end
+        if db.summaryPos ~= nil and type(db.summaryPos) ~= "table" then
+            db.summaryPos = nil
         end
         ApplyDetail()
         -- no switches in the panel for these: always the intended behavior
@@ -1905,6 +3200,13 @@ f:SetScript("OnEvent", function(_, event, arg1, arg2, arg3, arg4)
         if hooksecurefunc and SetItemRef then
             hooksecurefunc("SetItemRef", OnBossLink) -- same way Questie handles its addon links
         end
+        -- dungeon summary window: instance runs and the end of a dungeon. Events this client does not know are
+        -- skipped (RegisterEvent raises an error for an unknown event).
+        for _, ev in ipairs({ "PLAYER_ENTERING_WORLD", "ZONE_CHANGED_NEW_AREA", "ENCOUNTER_END",
+            "LFG_COMPLETION_REWARD", "CHALLENGE_MODE_COMPLETED", "SCENARIO_COMPLETED" }) do
+            pcall(f.RegisterEvent, f, ev)
+        end
+        SummaryCall(Summary.OnZone)
     elseif event == "CHAT_MSG_PARTY" or event == "CHAT_MSG_PARTY_LEADER" or event == "CHAT_MSG_RAID"
         or event == "CHAT_MSG_RAID_LEADER" or event == "CHAT_MSG_INSTANCE_CHAT"
         or event == "CHAT_MSG_INSTANCE_CHAT_LEADER" then
@@ -1912,11 +3214,24 @@ f:SetScript("OnEvent", function(_, event, arg1, arg2, arg3, arg4)
     elseif event == "CHAT_MSG_ADDON" then
         OnAddonMessage(arg1, arg2, arg3, arg4) -- prefix, text, channel, sender
     elseif event == "PLAYER_ENTERING_WORLD" then
-        if InAnyGroup() then
+        if commReady and InAnyGroup() then
             SendVersionSoon()
         end
+        SummaryCall(Summary.OnZone)
+    elseif event == "ZONE_CHANGED_NEW_AREA" then
+        SummaryCall(Summary.OnZone)
+    elseif event == "ENCOUNTER_END" then
+        SummaryCall(Summary.OnEncounterEnd, arg1, arg5) -- encounterID, name, difficultyID, groupSize, success
+    elseif event == "LFG_COMPLETION_REWARD" or event == "CHALLENGE_MODE_COMPLETED" or event == "SCENARIO_COMPLETED" then
+        SummaryCall(Summary.OnCompleted, event)
     elseif event == "GROUP_ROSTER_UPDATE" then
+        local grouped = wasInGroup
         OnGroupRosterUpdate()
+        if grouped and not wasInGroup then
+            SummaryCall(Summary.OnGroupLeft)
+        else
+            SummaryCall(Summary.OnRosterUpdate)
+        end
     elseif event == "LOOT_HISTORY_UPDATE_DROP" then
         OnDropUpdate(arg1, arg2)
     elseif event == "CHAT_MSG_LOOT" then

@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.7.0
+
+- New: a loot summary window at the end of a dungeon. One row per player with the items they won (item tiles with tooltip, Shift-click links the item, click a name to whisper), your own row highlighted, a star for the top looter, and a "Details" view with item, winner and roll. Draggable (the position is remembered), Esc closes it.
+- It opens after the last boss (or the dungeon completion event, or when you leave the instance), waits for open rolls to finish and never opens during combat.
+- Options: Everyone / Only my items / Off. `/wwt summary` reopens the last one, `/wwt test` shows a sample.
+
 ## 4.6.10
 
 - Group announcement is clearer: the winner is named with "won by", every raid marker stands before the names it describes, groups are separated by ` // `, rolls are `Name:89`, and there are no Need/Greed/Pass words: `<WWT> [Item] (Boss) - won by {rt2} Winner:94 // {rt6} Second:88, Third:74 // {rt5} Fourth`.
