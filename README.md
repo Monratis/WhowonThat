@@ -28,7 +28,7 @@ Made for **WoW Forever** (Midnight engine, Interface `16001`). No other addon ne
 
 - **A separate tab works best:** other loot messages (like "You receive loot") are hidden in the chosen tab.
 - Want a quiet chat? Turn *Loot* off in every tab (right-click the tab > Settings > Loot). The addon still shows its blocks.
-- **Dungeon loot summary:** when a dungeon ends, a LOOT SUMMARY button appears; click it to open a small window that lists who got which items (hover for the tooltip, Shift-click to link, "Details" for the rolls). Choose Everyone / Only my items / Off in the options; `/wwt summary` reopens it.
+- **Dungeon loot summary:** when a dungeon ends, a small pop-up shows the top winners; click it to open a window that lists who got which items (hover for the tooltip, Shift-click to link, "Details" for the rolls). Choose Everyone / Only my items / Off in the options; `/wwt summary` reopens it.
 - Commands: `/wwt` settings, `/wwt test` sample roll and sample summary window, `/wwt summary` last dungeon summary, `/wwt help`.
 
 ## Development

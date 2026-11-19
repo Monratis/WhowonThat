@@ -1,5 +1,10 @@
 # Changelog
 
+## 4.7.2
+
+- Loot summary pop-up redesigned: dialog-style frame with an icon, a preview of the top winners (class-colored, e.g. Monra x3 - Casandra x2) and a tooltip with everyone. It sits at the top edge of the screen, fades after 25 seconds (longer while hovered); click opens the full window, `/wwt summary` reopens it later.
+- `/wwt test` now shows the pop-up (like a real dungeon end) instead of opening the window, and the sample never replaces your last real summary.
+
 ## 4.7.1
 
 - Loot summary: at the end of a dungeon a small pulsing button (LOOT SUMMARY) appears instead of the window opening by itself. Click to open, right-click to dismiss, drag to move (position remembered), it disappears after 10 minutes.

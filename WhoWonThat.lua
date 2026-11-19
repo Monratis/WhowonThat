@@ -2280,7 +2280,9 @@ local function OpenSummary(run)
         summaryFrame = fr
     end
     summaryShowing = run
-    summaryLast = run
+    if run.id ~= "sample" then
+        summaryLast = run -- the /wwt test sample never replaces the last real dungeon
+    end
     RenderSummary()
     summaryFrame:Show()
 end
@@ -2288,7 +2290,8 @@ end
 -- ----- the pop-up button -----
 -- At the end of a dungeon the window does not pop up by itself: a small pulsing button appears (like a toast),
 -- a click opens the summary, right-click dismisses it. Draggable (position remembered), gone after 10 minutes.
-local SUMMARY_BTN_W, SUMMARY_BTN_H = 220, 46
+local SUMMARY_BTN_W, SUMMARY_BTN_H = 290, 58
+local SUMMARY_BTN_SHOW = 25 -- seconds the pop-up stays (longer while the mouse is on it)
 local summaryBtnToken = 0
 
 local function SaveSummaryBtnPos(self)
@@ -2309,11 +2312,15 @@ local function PlaceSummaryButton(b)
         end
         b:ClearAllPoints()
     end
-    b:SetPoint("TOP", UIParent, "TOP", 0, -150)
+    b:SetPoint("TOP", UIParent, "TOP", 0, -12) -- right at the top edge, out of the way of the game view
 end
 
 local function BuildSummaryButton()
-    local b = CreateFrame("Button", "WhoWonThatSummaryButton", UIParent)
+    local template = BackdropTemplateMixin and "BackdropTemplate" or nil
+    local ok, b = pcall(CreateFrame, "Button", "WhoWonThatSummaryButton", UIParent, template)
+    if not ok or not b then
+        b = CreateFrame("Button", "WhoWonThatSummaryButton", UIParent)
+    end
     b:SetSize(SUMMARY_BTN_W, SUMMARY_BTN_H)
     b:SetFrameStrata("FULLSCREEN_DIALOG")
     b:SetToplevel(true)
@@ -2322,58 +2329,104 @@ local function BuildSummaryButton()
     b:RegisterForDrag("LeftButton")
     b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
 
-    local glow = b:CreateTexture(nil, "BACKGROUND", nil, -1)
-    glow:SetPoint("TOPLEFT", -8, 8)
-    glow:SetPoint("BOTTOMRIGHT", 8, -8)
-    glow:SetColorTexture(GOLD_R, GOLD_G, GOLD_B, 0.3)
-    glow:SetBlendMode("ADD")
-    local pulse = glow:CreateAnimationGroup()
-    pulse:SetLooping("BOUNCE")
-    local pa = pulse:CreateAnimation("Alpha")
-    pa:SetFromAlpha(0.15)
-    pa:SetToAlpha(0.8)
-    pa:SetDuration(0.9)
-    pa:SetSmoothing("IN_OUT")
-    b.pulse = pulse
+    -- frame: the same dialog border + dark background as the window; flat gold edge if the art is missing
+    local styled = false
+    if b.SetBackdrop then
+        styled = pcall(b.SetBackdrop, b, {
+            bgFile = ART.dialogBg,
+            edgeFile = ART.dialogEdge,
+            tile = true, tileSize = 32, edgeSize = 18,
+            insets = { left = 5, right = 5, top = 5, bottom = 5 },
+        })
+    end
+    if styled then
+        pcall(b.SetBackdropColor, b, 1, 1, 1, 0.97)
+        pcall(b.SetBackdropBorderColor, b, 1, 0.93, 0.8, 1)
+    else
+        local bg = b:CreateTexture(nil, "BACKGROUND")
+        bg:SetAllPoints()
+        bg:SetColorTexture(0.06, 0.05, 0.04, 0.96)
+        AddEdges(b, "BORDER", GOLD_R, GOLD_G, GOLD_B, 0.85)
+    end
+    local inset = styled and 5 or 1
+    local sheen = b:CreateTexture(nil, "BACKGROUND", nil, 2)
+    sheen:SetPoint("TOPLEFT", inset, -inset)
+    sheen:SetPoint("TOPRIGHT", -inset, -inset)
+    sheen:SetHeight(SUMMARY_BTN_H / 2)
+    Gradient(sheen, "VERTICAL", GOLD_R, GOLD_G, GOLD_B, 0, GOLD_R, GOLD_G, GOLD_B, 0.14)
 
-    local border = b:CreateTexture(nil, "BACKGROUND")
-    border:SetAllPoints()
-    border:SetColorTexture(GOLD_R, GOLD_G, GOLD_B, 1)
-    local fill = b:CreateTexture(nil, "BORDER")
-    fill:SetPoint("TOPLEFT", 1, -1)
-    fill:SetPoint("BOTTOMRIGHT", -1, 1)
-    fill:SetColorTexture(0.07, 0.05, 0.03, 0.96)
-    local sheen = b:CreateTexture(nil, "ARTWORK")
-    sheen:SetPoint("TOPLEFT", 1, -1)
-    sheen:SetPoint("BOTTOMRIGHT", -1, 1)
-    Gradient(sheen, "VERTICAL", 0.45, 0.32, 0.06, 0.55, 0.2, 0.14, 0.02, 0.9)
+    -- icon tile with a gold ring; a soft glow behind it pulses
+    local icon = b:CreateTexture(nil, "ARTWORK")
+    icon:SetSize(34, 34)
+    icon:SetPoint("LEFT", 14, 0)
+    if not TrySetFile(icon, "Interface\\Icons\\INV_Misc_Bag_10") then
+        icon:SetColorTexture(0.3, 0.22, 0.08, 1)
+    else
+        icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+    end
+    local ring = b:CreateTexture(nil, "OVERLAY")
+    if TrySetFile(ring, ART.iconFrame) then
+        ring:SetPoint("TOPLEFT", icon, "TOPLEFT", -2, 2)
+        ring:SetPoint("BOTTOMRIGHT", icon, "BOTTOMRIGHT", 2, -2)
+        ring:SetVertexColor(GOLD_R, GOLD_G, GOLD_B, 1)
+    else
+        ring:Hide()
+    end
+    local glow = b:CreateTexture(nil, "BACKGROUND", nil, 3)
+    if TrySetFile(glow, ART.glow) then
+        glow:SetPoint("CENTER", icon, "CENTER")
+        glow:SetSize(72, 72)
+        glow:SetBlendMode("ADD")
+        glow:SetVertexColor(1, 0.82, 0.3, 0.9)
+        local pulse = glow:CreateAnimationGroup()
+        pulse:SetLooping("BOUNCE")
+        local pa = pulse:CreateAnimation("Alpha")
+        pa:SetFromAlpha(0.25)
+        pa:SetToAlpha(0.95)
+        pa:SetDuration(1)
+        pa:SetSmoothing("IN_OUT")
+        b.pulse = pulse
+    else
+        glow:Hide()
+        b.pulse = b:CreateAnimationGroup()
+    end
 
+    -- text
+    b.text = b:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    b.text:SetPoint("TOPLEFT", icon, "TOPRIGHT", 12, 1)
+    b.text:SetJustifyH("LEFT")
+    b.text:SetText("Loot summary")
+    b.text:SetTextColor(1, 0.86, 0.4)
+    b.hint = b:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    b.hint:SetPoint("TOPLEFT", b.text, "BOTTOMLEFT", 0, -3)
+    b.hint:SetJustifyH("LEFT")
+    b.hint:SetWidth(SUMMARY_BTN_W - 84)
+    b.hint:SetWordWrap(false)
+    b.hint:SetTextColor(MUTED_R, MUTED_G, MUTED_B)
+
+    -- hover highlight and a slow shine sweeping across
+    local hl = b:CreateTexture(nil, "HIGHLIGHT")
+    hl:SetPoint("TOPLEFT", inset, -inset)
+    hl:SetPoint("BOTTOMRIGHT", -inset, inset)
+    hl:SetColorTexture(GOLD_R, GOLD_G, GOLD_B, 0.12)
     local holder = CreateFrame("Frame", nil, b)
-    holder:SetPoint("TOPLEFT", 1, -1)
-    holder:SetPoint("BOTTOMRIGHT", -1, 1)
+    holder:SetPoint("TOPLEFT", inset, -inset)
+    holder:SetPoint("BOTTOMRIGHT", -inset, inset)
     if holder.SetClipsChildren then
         holder:SetClipsChildren(true)
     end
     local shine = holder:CreateTexture(nil, "ARTWORK", nil, 2)
-    shine:SetSize(36, SUMMARY_BTN_H)
+    shine:SetSize(34, SUMMARY_BTN_H)
     shine:SetPoint("RIGHT", holder, "LEFT", 0, 0)
-    Gradient(shine, "HORIZONTAL", 1, 1, 1, 0, 1, 1, 1, 0.4)
+    Gradient(shine, "HORIZONTAL", 1, 1, 1, 0, 1, 0.95, 0.8, 0.22)
     shine:SetBlendMode("ADD")
     local sg = shine:CreateAnimationGroup()
     sg:SetLooping("REPEAT")
     local sm = sg:CreateAnimation("Translation")
     sm:SetOffset(SUMMARY_BTN_W + 40, 0)
-    sm:SetDuration(0.9)
-    sm:SetStartDelay(1.8)
+    sm:SetDuration(1)
+    sm:SetStartDelay(2.5)
     b.shine = sg
-
-    b.text = b:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    b.text:SetPoint("CENTER", 0, 6)
-    b.text:SetText("LOOT SUMMARY")
-    b.text:SetTextColor(1, 0.86, 0.4)
-    b.hint = b:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    b.hint:SetPoint("CENTER", 0, -11)
-    b.hint:SetTextColor(MUTED_R, MUTED_G, MUTED_B)
 
     b:SetScript("OnDragStart", b.StartMoving)
     b:SetScript("OnDragStop", SaveSummaryBtnPos)
@@ -2387,7 +2440,13 @@ local function BuildSummaryButton()
         if GameTooltip then
             GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
             GameTooltip:AddLine("Who Won That")
-            GameTooltip:AddLine("Click to see who won what in this dungeon.", 1, 1, 1, true)
+            GameTooltip:AddLine("Click for the full loot summary (or type /wwt summary later).", 1, 1, 1, true)
+            for i, e in ipairs(self.leaders or {}) do
+                if i > 8 then
+                    break
+                end
+                GameTooltip:AddDoubleLine(e.colored, e.count .. (e.count == 1 and " item" or " items"), 1, 1, 1, 0.8, 0.8, 0.8)
+            end
             GameTooltip:AddLine("Drag to move. Right-click to dismiss.", 0.7, 0.7, 0.7)
             GameTooltip:Show()
         end
@@ -2400,6 +2459,36 @@ local function BuildSummaryButton()
     b:Hide()
     PlaceSummaryButton(b)
     return b
+end
+
+-- Winners of the run sorted by number of items: { name, colored (class-colored name), count }.
+local function SummaryLeaders(run, mineOnly)
+    local byPlayer, list = {}, {}
+    for _, d in ipairs(run.drops) do
+        local p = d.player
+        if p and (not mineOnly or p.isSelf) then
+            local e = byPlayer[p]
+            if not e then
+                local c = p.class and ClassColor(p.class)
+                local colored = p.short
+                if c then
+                    colored = string.format("|cff%02x%02x%02x%s|r", math.floor(c.r * 255 + 0.5),
+                        math.floor(c.g * 255 + 0.5), math.floor(c.b * 255 + 0.5), p.short)
+                end
+                e = { name = p.short, colored = colored, count = 0, order = p.order or 0 }
+                byPlayer[p] = e
+                list[#list + 1] = e
+            end
+            e.count = e.count + 1
+        end
+    end
+    table.sort(list, function(a, b)
+        if a.count ~= b.count then
+            return a.count > b.count
+        end
+        return a.order < b.order
+    end)
+    return list
 end
 
 ShowSummaryButton = function(run)
@@ -2419,8 +2508,22 @@ ShowSummaryButton = function(run)
         summaryBtn = b
     end
     summaryBtn.run = run
-    local n = VisibleCount(run, db and db.summary == "mine")
-    summaryBtn.hint:SetText("Who Won That" .. SUMMARY_DOT .. string.format("%d item%s", n, n == 1 and "" or "s"))
+    local mine = db and db.summary == "mine"
+    local n = VisibleCount(run, mine)
+    local leaders = SummaryLeaders(run, mine)
+    local parts = {}
+    for i = 1, math.min(#leaders, 3) do
+        parts[#parts + 1] = leaders[i].colored .. " \195\151" .. leaders[i].count
+    end
+    local text = table.concat(parts, SUMMARY_DOT)
+    if #leaders > 3 then
+        text = text .. SUMMARY_DOT .. "+" .. (#leaders - 3)
+    end
+    if text == "" then
+        text = string.format("%d item%s", n, n == 1 and "" or "s")
+    end
+    summaryBtn.hint:SetText(text)
+    summaryBtn.leaders, summaryBtn.itemCount = leaders, n
     if summaryBtn:IsShown() then
         return
     end
@@ -2444,7 +2547,7 @@ ShowSummaryButton = function(run)
             end
             summaryBtn:Hide()
         end
-        C_Timer.After(600, Expire)
+        C_Timer.After(SUMMARY_BTN_SHOW, Expire)
     end
 end
 
@@ -2781,9 +2884,7 @@ local function SummarySample()
     Drop(pA, Link(14551, "a335ee", "Edgemaster's Handguards"), "need", 88)
     Drop(pC, Link(18832, "0070dd", "Brutality Blade"), "need", 63, "OS")
     Drop(pD, Link(14551, "1eff00", "Edgemaster's Handguards"), "greed", 22)
-    local previous = summaryLast
-    OpenSummary(run)
-    summaryLast = previous
+    ShowSummaryButton(run) -- like a real dungeon end: the button first, the window on click
 end
 
 return {
