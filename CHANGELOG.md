@@ -1,5 +1,10 @@
 # Changelog
 
+## 4.7.1
+
+- Loot summary: at the end of a dungeon a small pulsing button (LOOT SUMMARY) appears instead of the window opening by itself. Click to open, right-click to dismiss, drag to move (position remembered), it disappears after 10 minutes.
+- Loot summary: more reliable end-of-dungeon detection (also listens to BOSS_KILL, for dungeons where the boss fight event never fires). A built-in list of last bosses (by boss fight ID, language independent) is checked before the Encounter Journal, and dungeons without a single last boss (Ragefire Chasm, The Stockade) end once every boss is down. WoW Forever's own dungeons no longer end early on a side boss.
+
 ## 4.7.0
 
 - New: a loot summary window at the end of a dungeon. One row per player with the items they won (item tiles with tooltip, Shift-click links the item, click a name to whisper), your own row highlighted, a star for the top looter, and a "Details" view with item, winner and roll. Draggable (the position is remembered), Esc closes it.

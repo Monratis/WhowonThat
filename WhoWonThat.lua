@@ -2263,7 +2263,12 @@ local function CreateSummaryFrame()
     return fr
 end
 
+local summaryBtn, ShowSummaryButton -- the pop-up button that offers the window (defined below OpenSummary)
+
 local function OpenSummary(run)
+    if summaryBtn then
+        summaryBtn:Hide()
+    end
     if not summaryFrame then
         local ok, fr = pcall(CreateSummaryFrame)
         if not ok or not fr then
@@ -2278,6 +2283,169 @@ local function OpenSummary(run)
     summaryLast = run
     RenderSummary()
     summaryFrame:Show()
+end
+
+-- ----- the pop-up button -----
+-- At the end of a dungeon the window does not pop up by itself: a small pulsing button appears (like a toast),
+-- a click opens the summary, right-click dismisses it. Draggable (position remembered), gone after 10 minutes.
+local SUMMARY_BTN_W, SUMMARY_BTN_H = 220, 46
+local summaryBtnToken = 0
+
+local function SaveSummaryBtnPos(self)
+    self:StopMovingOrSizing()
+    local point, _, relPoint, x, y = self:GetPoint(1)
+    if db and type(point) == "string" and type(x) == "number" and type(y) == "number" then
+        db.summaryBtnPos = { point = point, relPoint = type(relPoint) == "string" and relPoint or point, x = x, y = y }
+    end
+end
+
+local function PlaceSummaryButton(b)
+    b:ClearAllPoints()
+    local p = db and db.summaryBtnPos
+    if type(p) == "table" and type(p.point) == "string" and type(p.relPoint) == "string"
+        and type(p.x) == "number" and type(p.y) == "number" then
+        if pcall(b.SetPoint, b, p.point, UIParent, p.relPoint, p.x, p.y) then
+            return
+        end
+        b:ClearAllPoints()
+    end
+    b:SetPoint("TOP", UIParent, "TOP", 0, -150)
+end
+
+local function BuildSummaryButton()
+    local b = CreateFrame("Button", "WhoWonThatSummaryButton", UIParent)
+    b:SetSize(SUMMARY_BTN_W, SUMMARY_BTN_H)
+    b:SetFrameStrata("FULLSCREEN_DIALOG")
+    b:SetToplevel(true)
+    b:SetClampedToScreen(true)
+    b:SetMovable(true)
+    b:RegisterForDrag("LeftButton")
+    b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+
+    local glow = b:CreateTexture(nil, "BACKGROUND", nil, -1)
+    glow:SetPoint("TOPLEFT", -8, 8)
+    glow:SetPoint("BOTTOMRIGHT", 8, -8)
+    glow:SetColorTexture(GOLD_R, GOLD_G, GOLD_B, 0.3)
+    glow:SetBlendMode("ADD")
+    local pulse = glow:CreateAnimationGroup()
+    pulse:SetLooping("BOUNCE")
+    local pa = pulse:CreateAnimation("Alpha")
+    pa:SetFromAlpha(0.15)
+    pa:SetToAlpha(0.8)
+    pa:SetDuration(0.9)
+    pa:SetSmoothing("IN_OUT")
+    b.pulse = pulse
+
+    local border = b:CreateTexture(nil, "BACKGROUND")
+    border:SetAllPoints()
+    border:SetColorTexture(GOLD_R, GOLD_G, GOLD_B, 1)
+    local fill = b:CreateTexture(nil, "BORDER")
+    fill:SetPoint("TOPLEFT", 1, -1)
+    fill:SetPoint("BOTTOMRIGHT", -1, 1)
+    fill:SetColorTexture(0.07, 0.05, 0.03, 0.96)
+    local sheen = b:CreateTexture(nil, "ARTWORK")
+    sheen:SetPoint("TOPLEFT", 1, -1)
+    sheen:SetPoint("BOTTOMRIGHT", -1, 1)
+    Gradient(sheen, "VERTICAL", 0.45, 0.32, 0.06, 0.55, 0.2, 0.14, 0.02, 0.9)
+
+    local holder = CreateFrame("Frame", nil, b)
+    holder:SetPoint("TOPLEFT", 1, -1)
+    holder:SetPoint("BOTTOMRIGHT", -1, 1)
+    if holder.SetClipsChildren then
+        holder:SetClipsChildren(true)
+    end
+    local shine = holder:CreateTexture(nil, "ARTWORK", nil, 2)
+    shine:SetSize(36, SUMMARY_BTN_H)
+    shine:SetPoint("RIGHT", holder, "LEFT", 0, 0)
+    Gradient(shine, "HORIZONTAL", 1, 1, 1, 0, 1, 1, 1, 0.4)
+    shine:SetBlendMode("ADD")
+    local sg = shine:CreateAnimationGroup()
+    sg:SetLooping("REPEAT")
+    local sm = sg:CreateAnimation("Translation")
+    sm:SetOffset(SUMMARY_BTN_W + 40, 0)
+    sm:SetDuration(0.9)
+    sm:SetStartDelay(1.8)
+    b.shine = sg
+
+    b.text = b:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    b.text:SetPoint("CENTER", 0, 6)
+    b.text:SetText("LOOT SUMMARY")
+    b.text:SetTextColor(1, 0.86, 0.4)
+    b.hint = b:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    b.hint:SetPoint("CENTER", 0, -11)
+    b.hint:SetTextColor(MUTED_R, MUTED_G, MUTED_B)
+
+    b:SetScript("OnDragStart", b.StartMoving)
+    b:SetScript("OnDragStop", SaveSummaryBtnPos)
+    b:SetScript("OnClick", function(self, button)
+        self:Hide()
+        if button == "LeftButton" and self.run then
+            OpenSummary(self.run)
+        end
+    end)
+    b:SetScript("OnEnter", function(self)
+        if GameTooltip then
+            GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+            GameTooltip:AddLine("Who Won That")
+            GameTooltip:AddLine("Click to see who won what in this dungeon.", 1, 1, 1, true)
+            GameTooltip:AddLine("Drag to move. Right-click to dismiss.", 0.7, 0.7, 0.7)
+            GameTooltip:Show()
+        end
+    end)
+    b:SetScript("OnLeave", function()
+        if GameTooltip then
+            GameTooltip:Hide()
+        end
+    end)
+    b:Hide()
+    PlaceSummaryButton(b)
+    return b
+end
+
+ShowSummaryButton = function(run)
+    if summaryFrame and summaryFrame:IsShown() then
+        OpenSummary(run) -- the window is already open: show this run in it, no button needed
+        return
+    end
+    if not summaryBtn then
+        local ok, b = pcall(BuildSummaryButton)
+        if not ok or not b then
+            if geterrorhandler and not ok then
+                geterrorhandler()(b)
+            end
+            OpenSummary(run) -- no button possible: fall back to opening the window
+            return
+        end
+        summaryBtn = b
+    end
+    summaryBtn.run = run
+    local n = VisibleCount(run, db and db.summary == "mine")
+    summaryBtn.hint:SetText("Who Won That" .. SUMMARY_DOT .. string.format("%d item%s", n, n == 1 and "" or "s"))
+    if summaryBtn:IsShown() then
+        return
+    end
+    summaryBtn:Show()
+    summaryBtn:Raise()
+    summaryBtn.pulse:Play()
+    summaryBtn.shine:Play()
+    if PlaySound and SOUNDKIT and SOUNDKIT.UI_EPICLOOT_TOAST then
+        pcall(PlaySound, SOUNDKIT.UI_EPICLOOT_TOAST)
+    end
+    summaryBtnToken = summaryBtnToken + 1
+    local token = summaryBtnToken
+    if C_Timer and C_Timer.After then
+        local function Expire()
+            if token ~= summaryBtnToken or not summaryBtn:IsShown() then
+                return
+            end
+            if summaryBtn:IsMouseOver() then
+                C_Timer.After(5, Expire) -- under the mouse: try again a bit later
+                return
+            end
+            summaryBtn:Hide()
+        end
+        C_Timer.After(600, Expire)
+    end
 end
 
 local function InLockdown()
@@ -2313,7 +2481,11 @@ local function ShowSummaryWhenSafe(run, auto)
         end
         return
     end
-    OpenSummary(run)
+    if auto then
+        ShowSummaryButton(run)
+    else
+        OpenSummary(run)
+    end
 end
 
 local function ShowSummarySoon(run, delay)
@@ -2355,7 +2527,60 @@ local function LastJournalEncounter(journalID)
     return PlainNumber(last) and last or nil
 end
 
-local function IsFinalEncounter(encounterID)
+-- Last boss of each known dungeon, by boss fight ID (same on every game language). Checked before the journal,
+-- whose last entry is wrong for some dungeons (optional / side bosses). Data cross-checked against Podium's dungeon book.
+local FINAL_ENCOUNTERS = {}
+for _, id in ipairs({
+    167, 2747, 592, 471, 2755, 226, 2767, 2910, 382, 443, 2778, 448, 450, 445, 447, 437, 2785, 554, 600, 429, 493,
+    245, 275, 280, 3069, 346, 368, 361, 478, 484,
+    3496, 3354, 3303, 3482, 3479, 3451, 3409, 3334, 3502, -- WoW Forever dungeons
+}) do
+    FINAL_ENCOUNTERS[id] = true
+end
+-- Dungeons with no single last boss: over when every boss is down (each entry = ids of one boss, any language/build)
+local ALL_BOSS_SETS = {
+    { { 430, 2732 }, { 431, 2733 }, { 432, 2734 }, { 433, 2735 } }, -- Ragefire Chasm
+    { { 2756 }, { 2757 }, { 2758 }, { 2759 }, { 2760 } },           -- The Stockade
+}
+local FOREVER_FIRST_ID = 3290 -- WoW Forever's own dungeon bosses: only the table above is trusted there
+
+local function KnownFinalEncounter(run, encounterID)
+    if FINAL_ENCOUNTERS[encounterID] then
+        return true
+    end
+    run.killedEnc = run.killedEnc or {}
+    run.killedEnc[encounterID] = true
+    for _, set in ipairs(ALL_BOSS_SETS) do
+        local inSet, all = false, true
+        for _, ids in ipairs(set) do
+            local down = false
+            for _, id in ipairs(ids) do
+                if id == encounterID then
+                    inSet = true
+                end
+                if run.killedEnc[id] then
+                    down = true
+                end
+            end
+            all = all and down
+        end
+        if inSet then
+            return all
+        end
+    end
+    return nil
+end
+
+local function IsFinalEncounter(encounterID, run)
+    if run then
+        local known = KnownFinalEncounter(run, encounterID)
+        if known ~= nil then
+            return known
+        end
+    end
+    if encounterID >= FOREVER_FIRST_ID then
+        return false
+    end
     if not (EJ_GetInstanceForMap and EJ_GetEncounterInfoByIndex and C_Map and C_Map.GetBestMapForUnit) then
         return false
     end
@@ -2448,7 +2673,7 @@ local function SummaryOnEncounterEnd(encounterID, success)
         return -- wipe
     end
     run.lastEncounterID = encounterID
-    if IsFinalEncounter(encounterID) then
+    if IsFinalEncounter(encounterID, run) then
         SummaryEnd(run, encounterID)
     end
 end
@@ -3155,6 +3380,9 @@ f:SetScript("OnEvent", function(_, event, arg1, arg2, arg3, arg4, arg5)
         if db.summaryPos ~= nil and type(db.summaryPos) ~= "table" then
             db.summaryPos = nil
         end
+        if db.summaryBtnPos ~= nil and type(db.summaryBtnPos) ~= "table" then
+            db.summaryBtnPos = nil
+        end
         ApplyDetail()
         -- no switches in the panel for these: always the intended behavior
         db.byBoss, db.classColors, db.header = true, true, true
@@ -3203,7 +3431,7 @@ f:SetScript("OnEvent", function(_, event, arg1, arg2, arg3, arg4, arg5)
         -- dungeon summary window: instance runs and the end of a dungeon. Events this client does not know are
         -- skipped (RegisterEvent raises an error for an unknown event).
         for _, ev in ipairs({ "PLAYER_ENTERING_WORLD", "ZONE_CHANGED_NEW_AREA", "ENCOUNTER_END",
-            "LFG_COMPLETION_REWARD", "CHALLENGE_MODE_COMPLETED", "SCENARIO_COMPLETED" }) do
+            "BOSS_KILL", "LFG_COMPLETION_REWARD", "CHALLENGE_MODE_COMPLETED", "SCENARIO_COMPLETED" }) do
             pcall(f.RegisterEvent, f, ev)
         end
         SummaryCall(Summary.OnZone)
@@ -3222,6 +3450,9 @@ f:SetScript("OnEvent", function(_, event, arg1, arg2, arg3, arg4, arg5)
         SummaryCall(Summary.OnZone)
     elseif event == "ENCOUNTER_END" then
         SummaryCall(Summary.OnEncounterEnd, arg1, arg5) -- encounterID, name, difficultyID, groupSize, success
+    elseif event == "BOSS_KILL" then
+        -- backup: on some dungeons ENCOUNTER_END never fires (same kill twice is harmless, the run ends once)
+        SummaryCall(Summary.OnEncounterEnd, arg1, 1) -- encounterID, name
     elseif event == "LFG_COMPLETION_REWARD" or event == "CHALLENGE_MODE_COMPLETED" or event == "SCENARIO_COMPLETED" then
         SummaryCall(Summary.OnCompleted, event)
     elseif event == "GROUP_ROSTER_UPDATE" then

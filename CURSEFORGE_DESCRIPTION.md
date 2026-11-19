@@ -21,6 +21,6 @@
 - **A separate tab works best:** other loot messages (like "You receive loot") are hidden in the chosen tab.
 - Want a quiet chat? Turn *Loot* off in every tab (right-click the tab > Settings > Loot). The addon still shows its blocks.
 - `/wwt test` prints a sample roll and opens a sample loot summary window.
-- `/wwt summary` reopens the loot summary of the last dungeon (it also opens by itself when a dungeon ends; Everyone / Only my items / Off in the options).
+- `/wwt summary` reopens the loot summary of the last dungeon (a button for it also pops up when a dungeon ends; Everyone / Only my items / Off in the options).
 
 Made for WoW Forever. Source and issues: https://github.com/Monratis/WhowonThat - MIT licensed.
