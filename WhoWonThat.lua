@@ -839,7 +839,7 @@ local function AnnounceLines(info, encounterID)
     end
 
     -- Compact layout, rolls grouped by type so the type is written once, not once per player:
-    --   {star} Winner:93 (Greed) / {greed} Greed: Second:88, Third:74 / Need OS: Fourth:40 / {pass} Pass: Fifth, Sixth
+    --   {star} Winner:93 {greed} / {greed} Second:88, Third:74 / {need} OS Fourth:40 / {pass} Fifth, Sixth
     -- tokens = pieces with the separator that goes before them, so the end can be cut cleanly.
     local tokens = {}
     local label
@@ -848,7 +848,7 @@ local function AnnounceLines(info, encounterID)
         if wst then
             label = wst.label
             tokens[#tokens + 1] = { " ", MARK.winner .. " " .. AnnounceName(winner.playerName)
-                .. (winner.roll and (":" .. winner.roll) or "") .. " (" .. label .. ")" .. Flag(winner, wst) }
+                .. (winner.roll and (":" .. winner.roll) or "") .. " " .. MARK[wst.kind] .. (wst.tag and (" " .. wst.tag) or "") .. Flag(winner, wst) }
         else
             tokens[#tokens + 1] = { " ", MARK.winner .. " " .. AnnounceName(winner.playerName) .. " WON" }
         end
@@ -856,14 +856,14 @@ local function AnnounceLines(info, encounterID)
     for _, o in ipairs(others) do
         if o.st.label ~= label then
             label = o.st.label
-            tokens[#tokens + 1] = { #tokens == 0 and " " or " / ", MARK[o.st.kind] .. " " .. label .. ": " .. Entry(o.r, o.st) }
+            tokens[#tokens + 1] = { #tokens == 0 and " " or " / ", MARK[o.st.kind] .. (o.st.tag and (" " .. o.st.tag) or "") .. " " .. Entry(o.r, o.st) }
         else
             tokens[#tokens + 1] = { ", ", Entry(o.r, o.st) }
         end
     end
     for i, name in ipairs(passers) do
         if i == 1 then
-            tokens[#tokens + 1] = { #tokens == 0 and " " or " / ", MARK.pass .. " Pass: " .. name }
+            tokens[#tokens + 1] = { #tokens == 0 and " " or " / ", MARK.pass .. " " .. name }
         else
             tokens[#tokens + 1] = { ", ", name }
         end

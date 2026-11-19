@@ -1,5 +1,9 @@
 # Changelog
 
+## 4.6.9
+
+- Group announcements write rolls as `Name:89` and use the raid markers alone (no "Need"/"Greed"/"Pass" words): `{star} Winner:93 {greed} / {greed} Second:88 / {pass} Third`.
+
 ## 4.6.8
 
 - The result block in your chat now shows the game's own Need (dice), Greed (coin) and Pass icons instead of the words. Off-spec Need gets a small "OS" tag, and the "Passed:" / "Need:" prefixes are gone.
