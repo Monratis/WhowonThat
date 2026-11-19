@@ -20,7 +20,7 @@ local DEFAULTS = {
     header = true,      -- put the addon name in front of each item line
     byBoss = true,      -- always on: "Loot from: <boss>" above the items of one kill
     flagUnusable = true, -- always on: red X on Need rolls for armor the class cannot wear
-    announce = "off",   -- send results to group chat: "off", "mine" (only my wins) or "all"
+    announce = "off",   -- send results to group chat: "off" or "all" (an old "mine" is migrated to "all" on load)
     hideWhenAnnounced = true, -- do not print my own block for a result that was announced in group chat
     detail = "all",     -- how much to show: "winner", "rolls" (winner + Need/Greed) or "all" (also passes)
     layout = "auto",    -- "auto" = compact on a narrow chat window, "normal", or "compact"
@@ -681,21 +681,222 @@ end
 -- The group gets the same structure as the block in your own chat (item, winner, everyone else's rolls, who
 -- passed), as plain text and respecting the Detail setting. Anyone using this addon with announcements on
 -- could send the same block, so:
---  * we wait a random moment after the roll ends (the first client to wake up announces),
+--  * the winner's own addon announces first, after a short random moment; everyone else's addon waits longer
+--    and only steps in if the winner's block did not show up (winner without the addon, or with it turned off),
+--  * a drop nobody won (all passed) has no winner, so everyone uses the longer random wait,
 --  * if another player's block for the same item already appeared in group chat, we do not send ours,
+--  * addons that announce also tell each other through a hidden addon message ("claim", see below) the moment
+--    they decide to announce a drop, so the others cancel theirs at once and handle their own block right away
+--    instead of waiting out the grace period,
 --  * a result that was announced is not printed again as our own block (option, on by default).
+-- Everything degrades gracefully: without addon messages (API missing, locked down, nobody else runs the addon)
+-- the chat-line detection and the timing fallback below work exactly as before.
 local ANNOUNCE_PREFIX = "<Who Won That> "         -- starts the first announcement of a session: [Item]
 local ANNOUNCE_PREFIX_SHORT = "<WWT> "            -- every later one is shorter
 -- Older versions used other prefixes; still recognised so two players on different versions do not both announce.
 local KNOWN_PREFIXES = { ANNOUNCE_PREFIX, ANNOUNCE_PREFIX_SHORT, "Who Won That: ", "WWT: " }
 local announcedOnce = false
 -- Group chat cannot carry colors or custom icons, but it accepts the raid target markers. Their own colors
--- echo the block in your chat: gold star = winner, orange = Need, blue = Greed, grey moon = pass, red X = cannot use.
-local MARK = { winner = "{rt1}", need = "{rt2}", greed = "{rt6}", pass = "{rt5}", cantUse = "{rt7}" }
-local ANNOUNCE_DELAY_MIN, ANNOUNCE_DELAY_MAX = 2, 7 -- seconds
+-- echo the block in your chat: orange = Need, blue = Greed, grey moon = pass, red X = cannot use. Every marker
+-- stands BEFORE the names it describes (never trailing a roll), and the winner is named in words ("won by").
+local MARK = { need = "{rt2}", greed = "{rt6}", pass = "{rt5}", cantUse = "{rt7}" }
+local GROUP_SEP = " // " -- between roll groups; a plain " / " got lost between the icons
+-- Random wait after the roll ends before announcing, in seconds. The random part keeps two addons from
+-- sending at the same moment.
+local ANNOUNCE_DELAY_WINNER_MIN, ANNOUNCE_DELAY_WINNER_MAX = 1, 2     -- we won the item: announce quickly
+local ANNOUNCE_DELAY_FALLBACK_MIN, ANNOUNCE_DELAY_FALLBACK_MAX = 4, 7 -- someone else won / all passed: give the
+                                                                      -- winner's addon time to go first
 local ANNOUNCE_MEMORY = 120 -- seconds an announcement is remembered
 local SEND_INTERVAL = 0.5   -- seconds between two lines (keeps clear of the chat flood limit)
-local announcedAt = {}      -- [itemID] = { time, time, ... } one entry per block seen from other players
+local announcedAt = {}      -- [itemID] = { {t = time, s = sender}, ... } one entry per block seen from other players
+local MAX_SEEN_PER_ITEM = 20 -- bound for one item's list (a flood of copied lines cannot grow it further)
+
+-- ===== Addon-to-addon coordination (hidden addon messages, prefix "WWT") =====
+-- Message formats (plain text, at most a few dozen bytes):
+--   "A:<encounterID>:<lootListKey>:<itemID>"  claim: "I am announcing this drop now". Sent only by an addon whose
+--                                             announcements are on, the moment it decides to announce, right
+--                                             before its public line. The itemID guards against a mismatched key.
+--   "V:<version>"                             our addon version (dotted numbers), sent once on joining a group /
+--                                             entering the world while grouped (rate limited), and as a reply to
+--                                             an older version, so an outdated copy learns of the update once.
+-- Claims only matter while our own announcements are on; with "off" they are ignored, nothing is sent and the
+-- block is shown as before. Every value from other players is untrusted: checked by pattern, length and range,
+-- secret values are skipped, and every table is bounded.
+local COMM_PREFIX = "WWT"
+local commReady = false      -- prefix registered and the send API exists
+local claims = {}            -- ["enc:key"] = { t = time, itemID = "123", senders = { [shortName] = matchedChatLine } }
+local claimCount = 0
+local MAX_CLAIMS = 64
+local MAX_CLAIM_SENDERS = 8
+local pendingDrops = {}      -- ["enc:key"] = state of our own drop still waiting (random delay or grace period)
+local pendingCount = 0
+local MAX_PENDING = 100
+
+local function AnnounceActive()
+    return db and db.announce == "all"
+end
+
+local function ItemIDOf(link)
+    return type(link) == "string" and link:match("item:(%d+)") or nil
+end
+
+-- "enc:key" for a loot history drop, or nil if either part is not a plain, short number
+local function DropKey(encounterID, lootListKey)
+    if encounterID == nil or lootListKey == nil then
+        return nil
+    end
+    if issecretvalue and (issecretvalue(encounterID) or issecretvalue(lootListKey)) then
+        return nil
+    end
+    local a, b = tostring(encounterID), tostring(lootListKey)
+    if not (a:match("^%d+$") and b:match("^%d+$")) or #a > 10 or #b > 10 then
+        return nil
+    end
+    return tostring(tonumber(a)) .. ":" .. tostring(tonumber(b))
+end
+
+-- The group channel announcements and addon messages go to, or nil when not in a group.
+local function GroupChannel()
+    if IsInRaid and IsInRaid() then
+        return "RAID"
+    elseif IsInGroup and LE_PARTY_CATEGORY_INSTANCE and IsInGroup(LE_PARTY_CATEGORY_INSTANCE) then
+        return "INSTANCE_CHAT"
+    elseif IsInGroup and IsInGroup() then
+        return "PARTY"
+    end
+    return nil
+end
+
+local function ChatLocked()
+    return C_ChatInfo and C_ChatInfo.InChatMessagingLockdown and C_ChatInfo.InChatMessagingLockdown() and true or false
+end
+
+local function RegisterComm()
+    if not (C_ChatInfo and C_ChatInfo.RegisterAddonMessagePrefix and C_ChatInfo.SendAddonMessage) then
+        return
+    end
+    local ok = pcall(C_ChatInfo.RegisterAddonMessagePrefix, COMM_PREFIX)
+    if ok and C_ChatInfo.IsAddonMessagePrefixRegistered then
+        local ok2, registered = pcall(C_ChatInfo.IsAddonMessagePrefixRegistered, COMM_PREFIX)
+        ok = ok2 and registered and true or false
+    end
+    commReady = ok and true or false
+end
+
+-- Sends one addon message to the group. Never raises an error; false if it could not be sent.
+local function SendComm(text, channel)
+    if not commReady or not channel or ChatLocked() then
+        return false
+    end
+    local ok = pcall(C_ChatInfo.SendAddonMessage, COMM_PREFIX, text, channel)
+    return ok
+end
+
+-- True if the sender is this character (own addon messages and chat lines come back to us).
+local function IsSelfSender(sender)
+    local me = UnitName("player")
+    if type(me) ~= "string" or ShortName(sender) ~= me then
+        return false
+    end
+    local realm = sender:match("^[^%-]+%-(.+)$")
+    local mine = GetNormalizedRealmName and GetNormalizedRealmName()
+    if realm and type(mine) == "string" and mine ~= "" then
+        return (realm:gsub("[%s%-]", "")) == (mine:gsub("[%s%-]", ""))
+    end
+    return true
+end
+
+local function PruneClaims()
+    local now = GetTime()
+    for key, c in pairs(claims) do
+        if now - c.t > ANNOUNCE_MEMORY then
+            claims[key] = nil
+            claimCount = claimCount - 1
+        end
+    end
+end
+
+local function WipeCoordination()
+    wipe(announcedAt)
+    wipe(claims)
+    claimCount = 0
+end
+
+-- ----- Version notice -----
+local function ParseVersion(v)
+    if type(v) ~= "string" or (issecretvalue and issecretvalue(v)) or #v > 20 or not v:match("^%d+[%.%d]*$") then
+        return nil
+    end
+    local t = {}
+    for n in v:gmatch("%d+") do
+        if #t >= 4 or #n > 4 then
+            return nil
+        end
+        t[#t + 1] = tonumber(n)
+    end
+    return #t > 0 and t or nil
+end
+
+local function CompareVersions(a, b) -- -1 if a < b, 0 if equal, 1 if a > b
+    for i = 1, 4 do
+        local x, y = a[i] or 0, b[i] or 0
+        if x ~= y then
+            return x < y and -1 or 1
+        end
+    end
+    return 0
+end
+
+local myVersion -- parsed own version, nil if the TOC value is not plain dotted numbers
+do
+    local getMeta = (C_AddOns and C_AddOns.GetAddOnMetadata) or GetAddOnMetadata
+    if getMeta then
+        local ok, v = pcall(getMeta, ADDON, "Version")
+        if ok then
+            myVersion = ParseVersion(v)
+        end
+    end
+end
+local VERSION_INTERVAL = 60 -- seconds between two version messages of ours
+local lastVersionSent = -VERSION_INTERVAL
+local newerNoticed = false  -- the "newer version" line is printed once per session
+
+local function SendVersion()
+    if not myVersion then
+        return
+    end
+    local now = GetTime()
+    if now - lastVersionSent < VERSION_INTERVAL then
+        return
+    end
+    if SendComm("V:" .. table.concat(myVersion, "."), GroupChannel()) then
+        lastVersionSent = now
+    end
+end
+
+local function SendVersionSoon()
+    if C_Timer and C_Timer.After then
+        C_Timer.After(5, SendVersion) -- the group channel is not always usable the moment the group forms
+    else
+        SendVersion()
+    end
+end
+
+local function OnVersion(v)
+    local theirs = ParseVersion(v)
+    if not theirs or not myVersion then
+        return
+    end
+    local cmp = CompareVersions(myVersion, theirs)
+    if cmp < 0 then
+        if not newerNoticed then
+            newerNoticed = true
+            Print("A newer Who Won That version (" .. table.concat(theirs, ".") .. ") is available.")
+        end
+    elseif cmp > 0 then
+        SendVersion() -- let the older copy know (rate limited)
+    end
+end
 
 -- A new group starts from scratch: the full name and the boss line are written again, and what was seen in the
 -- old group's chat no longer matters. Called when you leave a group (the next one is always a new party).
@@ -705,24 +906,18 @@ local function OnGroupRosterUpdate()
     if wasInGroup and not inGroup then
         announcedOnce = false
         lastAnnouncedBoss = nil
-        wipe(announcedAt)
+        WipeCoordination()
+    elseif inGroup and not wasInGroup then
+        SendVersionSoon()
     end
     wasInGroup = inGroup
-end
-
-local function AnnounceActive()
-    return db and (db.announce == "mine" or db.announce == "all")
-end
-
-local function ItemIDOf(link)
-    return type(link) == "string" and link:match("item:(%d+)") or nil
 end
 
 local function PruneAnnouncements()
     local now = GetTime()
     for id, list in pairs(announcedAt) do
         for i = #list, 1, -1 do
-            if now - list[i] > ANNOUNCE_MEMORY then
+            if now - list[i].t > ANNOUNCE_MEMORY then
                 table.remove(list, i)
             end
         end
@@ -730,6 +925,24 @@ local function PruneAnnouncements()
             announcedAt[id] = nil
         end
     end
+end
+
+-- Removes one seen chat block of this item from this sender. True if there was one.
+local function RemoveSeenLine(itemID, sender)
+    local list = announcedAt[itemID]
+    if not list then
+        return false
+    end
+    for i = 1, #list do
+        if list[i].s == sender then
+            table.remove(list, i)
+            if #list == 0 then
+                announcedAt[itemID] = nil
+            end
+            return true
+        end
+    end
+    return false
 end
 
 -- Group chat line from another player: the first line of a block names the item, so remember it.
@@ -752,16 +965,110 @@ local function OnGroupChat(msg, sender)
     if not itemID then
         return
     end
-    if type(sender) == "string" and ShortName(sender) == UnitName("player") then
+    local who = UsableName(sender) and #sender <= 64 and ShortName(sender) or nil
+    if who and IsSelfSender(sender) then
         return
     end
     PruneAnnouncements()
+    -- the public line of a drop whose claim already arrived: the claim stands for it, so it is not counted again
+    -- (otherwise it would later be taken for a second copy of the same item)
+    if who then
+        PruneClaims()
+        for _, c in pairs(claims) do
+            if c.itemID == itemID and c.senders[who] == false then
+                c.senders[who] = true
+                return
+            end
+        end
+    end
     local list = announcedAt[itemID]
     if not list then
         list = {}
         announcedAt[itemID] = list
     end
-    list[#list + 1] = GetTime()
+    if #list < MAX_SEEN_PER_ITEM then
+        list[#list + 1] = { t = GetTime(), s = who }
+    end
+end
+
+-- True if another player's addon claimed this drop (and the claim names the same item).
+local function Claimed(key, info)
+    if not key then
+        return false
+    end
+    local c = claims[key]
+    if not c or GetTime() - c.t > ANNOUNCE_MEMORY then
+        return false
+    end
+    return c.itemID == ItemIDOf(info.itemHyperlink)
+end
+
+-- Our drop is no longer waiting (processed or cancelled).
+local function FinishPending(state)
+    if state and not state.done then
+        state.done = true
+        if pendingDrops[state.key] == state then
+            pendingDrops[state.key] = nil
+            pendingCount = pendingCount - 1
+        end
+    end
+end
+
+-- Another player's addon is announcing a drop. Only used while our announcements are on.
+local function OnClaim(who, key, itemID)
+    PruneClaims()
+    local c = claims[key]
+    if not c then
+        if claimCount >= MAX_CLAIMS then
+            return -- bounded; the chat-line check and the timing fallback still cover this drop
+        end
+        c = { t = GetTime(), itemID = itemID, senders = {}, n = 0 }
+        claims[key] = c
+        claimCount = claimCount + 1
+    elseif c.itemID ~= itemID then
+        return -- conflicting claim for the same key: keep the first
+    end
+    if c.senders[who] == nil and c.n < MAX_CLAIM_SENDERS then
+        -- if that player's public line arrived before the claim, the claim replaces it (see OnGroupChat)
+        c.senders[who] = RemoveSeenLine(itemID, who)
+        c.n = c.n + 1
+    end
+    -- our own copy of this drop is still waiting: settle it now instead of after the delay / grace period
+    local st = pendingDrops[key]
+    if st and not st.done and ItemIDOf(st.info.itemHyperlink) == itemID then
+        FinishPending(st)
+        if not db.hideWhenAnnounced then
+            RenderDrop(st.info, st.encounterID)
+        end
+    end
+end
+
+local function OnAddonMessage(prefix, text, channel, sender)
+    if issecretvalue and (issecretvalue(prefix) or issecretvalue(text) or issecretvalue(channel) or issecretvalue(sender)) then
+        return
+    end
+    if prefix ~= COMM_PREFIX or type(text) ~= "string" or #text > 64 then
+        return
+    end
+    if channel ~= "PARTY" and channel ~= "RAID" and channel ~= "INSTANCE_CHAT" then
+        return
+    end
+    if not UsableName(sender) or #sender > 64 or IsSelfSender(sender) then
+        return
+    end
+    local kind = text:sub(1, 2)
+    if kind == "A:" then
+        if not AnnounceActive() then
+            return -- announcements off: claims do not matter, behavior stays as without the addon messages
+        end
+        local enc, lk, item = text:match("^A:(%d+):(%d+):(%d+)$")
+        if not enc or #enc > 10 or #lk > 10 or #item > 10 then
+            return
+        end
+        OnClaim(ShortName(sender), tostring(tonumber(enc)) .. ":" .. tostring(tonumber(lk)), tostring(tonumber(item)))
+    elseif kind == "V:" then
+        OnVersion(text:sub(3))
+    end
 end
 
 -- True if another player already announced a block for this item. Each seen block covers one drop, so
@@ -838,32 +1145,36 @@ local function AnnounceLines(info, encounterID)
         table.sort(others, RollOrder)
     end
 
-    -- Compact layout, rolls grouped by type so the type is written once, not once per player:
-    --   {star} Winner:93 {greed} / {greed} Second:88, Third:74 / {need} OS Fourth:40 / {pass} Fifth, Sixth
+    -- Compact layout, rolls grouped by type so the type marker is written once, BEFORE its names:
+    --   <WWT> [Item] (Boss) - won by {need} Winner:94 {cantUse} // {greed} Second, Third // {pass} Fifth, Sixth
+    --   <WWT> [Item] - won by {greed} Winner:93 // {greed} Second:88, Third:74 // {need} OS Fourth:40
+    -- (greed rolls that lost to a Need have no number, so they are names only)
     -- tokens = pieces with the separator that goes before them, so the end can be cut cleanly.
     local tokens = {}
     local label
+    local function GroupStart(st)
+        return MARK[st.kind] .. (st.tag and (" " .. st.tag) or "") .. " "
+    end
     if db.wins and type(winner) == "table" and UsableName(winner.playerName) then
         local wst = STATE_INFO[winner.state]
         if wst then
-            label = wst.label
-            tokens[#tokens + 1] = { " ", MARK.winner .. " " .. AnnounceName(winner.playerName)
-                .. (winner.roll and (":" .. winner.roll) or "") .. " " .. MARK[wst.kind] .. (wst.tag and (" " .. wst.tag) or "") .. Flag(winner, wst) }
+            tokens[#tokens + 1] = { " - ", "won by " .. GroupStart(wst) .. Entry(winner, wst) }
         else
-            tokens[#tokens + 1] = { " ", MARK.winner .. " " .. AnnounceName(winner.playerName) .. " WON" }
+            tokens[#tokens + 1] = { " - ", "won by " .. AnnounceName(winner.playerName) }
         end
     end
+    -- the winner's own group is closed after the winner, so the losers always start a fresh, marked group
     for _, o in ipairs(others) do
         if o.st.label ~= label then
             label = o.st.label
-            tokens[#tokens + 1] = { #tokens == 0 and " " or " / ", MARK[o.st.kind] .. (o.st.tag and (" " .. o.st.tag) or "") .. " " .. Entry(o.r, o.st) }
+            tokens[#tokens + 1] = { #tokens == 0 and " - " or GROUP_SEP, GroupStart(o.st) .. Entry(o.r, o.st) }
         else
             tokens[#tokens + 1] = { ", ", Entry(o.r, o.st) }
         end
     end
     for i, name in ipairs(passers) do
         if i == 1 then
-            tokens[#tokens + 1] = { #tokens == 0 and " " or " / ", MARK.pass .. " " .. name }
+            tokens[#tokens + 1] = { #tokens == 0 and " - " or GROUP_SEP, MARK.pass .. " " .. name }
         else
             tokens[#tokens + 1] = { ", ", name }
         end
@@ -920,62 +1231,111 @@ end
 
 -- Announces the block. Returns true if it was queued. Nothing is sent while the game restricts addon chat
 -- (e.g. during encounters) or when you are not in a group.
-local function Announce(info, encounterID)
-    local mode = db.announce
+-- key = the drop's "enc:key" (loot history only): when given, the claim goes to the other addons right before the
+-- public line is queued, so their own pending announcement of this drop is cancelled at once.
+local function Announce(info, encounterID, key)
     local winner = info.winner
-    if mode ~= "mine" and mode ~= "all" then
+    if not AnnounceActive() then
         return false
     end
     local item = info.itemHyperlink
     if type(item) ~= "string" or (issecretvalue and issecretvalue(item)) or not ItemIDOf(item) then
         return false
     end
-    if not info.allPassed then
-        if type(winner) ~= "table" or not UsableName(winner.playerName) then
-            return false
-        end
-        if mode == "mine" and not winner.isSelf then
-            return false
-        end
-    elseif mode == "mine" then
+    if not info.allPassed and (type(winner) ~= "table" or not UsableName(winner.playerName)) then
         return false
     end
-    if C_ChatInfo and C_ChatInfo.InChatMessagingLockdown and C_ChatInfo.InChatMessagingLockdown() then
+    if ChatLocked() then
         return false
     end
-    local channel
-    if IsInRaid and IsInRaid() then
-        channel = "RAID"
-    elseif IsInGroup and LE_PARTY_CATEGORY_INSTANCE and IsInGroup(LE_PARTY_CATEGORY_INSTANCE) then
-        channel = "INSTANCE_CHAT"
-    elseif IsInGroup and IsInGroup() then
-        channel = "PARTY"
-    else
+    local channel = GroupChannel()
+    if not channel then
         return false
     end
     local send = SendChatMessage or (C_ChatInfo and C_ChatInfo.SendChatMessage) -- the same call Questie uses in Forever
     if not send then
         return false
     end
+    if key then
+        SendComm("A:" .. key .. ":" .. ItemIDOf(item), channel) -- best effort; failure changes nothing else
+    end
     local lines, commit = AnnounceLines(info, encounterID)
     Enqueue(lines, channel, send, commit)
     return true
 end
 
+local function InAnyGroup()
+    if not IsInGroup then
+        return false
+    end
+    return IsInGroup() or (LE_PARTY_CATEGORY_INSTANCE ~= nil and IsInGroup(LE_PARTY_CATEGORY_INSTANCE)) or false
+end
+
 -- A finished roll: announce it (if enabled and nobody did yet) and print our own block (unless the result was
 -- announced and the option to hide it is on).
-local function ProcessDrop(info, encounterID)
-    if not db then
-        return
+-- When we do not post it ourselves (e.g. the game restricts chat at that moment), another member's addon may still
+-- post it - up to ANNOUNCE_DELAY_FALLBACK_MAX seconds after the roll ended (the latest any member's addon
+-- announces), plus send queue and latency. Printing our block right away would then show the result twice, so
+-- with the hide option on we wait out that window first and print only if nobody announced it. When we announce
+-- ourselves, nothing is left to wait for. A claim from another member's addon (OnClaim) ends the wait at once.
+-- doneAt = when the roll was seen as finished, final = the check after that wait,
+-- state = our pending entry for a loot history drop (nil for the chat fallback, which has no drop key).
+local ANNOUNCE_GRACE = 3 -- seconds on top of ANNOUNCE_DELAY_FALLBACK_MAX for another member's line to arrive
+local function ProcessDrop(info, encounterID, doneAt, final, state)
+    if not db or (state and state.done) then
+        return -- settled already (a claim arrived while we waited)
     end
-    local announced = false
+    local key = state and state.key
     if AnnounceActive() then
-        announced = AlreadyAnnounced(info) or Announce(info, encounterID)
+        -- a claim is checked first, so it does not use up a seen chat line meant for another copy of the item
+        if Claimed(key, info) or AlreadyAnnounced(info) then
+            FinishPending(state)
+            if db.hideWhenAnnounced then
+                return
+            end
+        elseif not final then
+            if Announce(info, encounterID, key) then
+                FinishPending(state)
+                if db.hideWhenAnnounced then
+                    return
+                end
+            elseif db.hideWhenAnnounced and doneAt and InAnyGroup() and C_Timer and C_Timer.After then
+                local wait = doneAt + ANNOUNCE_DELAY_FALLBACK_MAX + ANNOUNCE_GRACE - GetTime()
+                C_Timer.After(math.max(wait, 0.5), function()
+                    ProcessDrop(info, encounterID, doneAt, true, state)
+                end)
+                return
+            end
+        end
     end
-    if announced and db.hideWhenAnnounced then
-        return
-    end
+    FinishPending(state)
     RenderDrop(info, encounterID)
+end
+
+-- Every finished roll goes through here (loot history and the chat fallback alike).
+-- lootListKey is only known for loot history drops; it makes the drop claimable between addons.
+local function ScheduleDrop(info, encounterID, lootListKey)
+    local doneAt = GetTime()
+    if AnnounceActive() and C_Timer and C_Timer.After then
+        local state
+        local key = DropKey(encounterID, lootListKey)
+        if key and not pendingDrops[key] and pendingCount < MAX_PENDING then
+            state = { key = key, info = info, encounterID = encounterID }
+            pendingDrops[key] = state
+            pendingCount = pendingCount + 1
+        end
+        -- winner first: our win gets the short delay, everything else the longer fallback delay
+        local winner = info.winner
+        local lo, hi = ANNOUNCE_DELAY_FALLBACK_MIN, ANNOUNCE_DELAY_FALLBACK_MAX
+        if not info.allPassed and type(winner) == "table" and winner.isSelf == true then
+            lo, hi = ANNOUNCE_DELAY_WINNER_MIN, ANNOUNCE_DELAY_WINNER_MAX
+        end
+        C_Timer.After(lo + math.random() * (hi - lo), function()
+            ProcessDrop(info, encounterID, doneAt, nil, state)
+        end)
+    else
+        ProcessDrop(info, encounterID, doneAt)
+    end
 end
 
 local function CheckDrop(encounterID, lootListKey)
@@ -998,14 +1358,7 @@ local function CheckDrop(encounterID, lootListKey)
     end
     seen[lootListKey] = true
     printedCount = printedCount + 1
-    if AnnounceActive() and C_Timer and C_Timer.After then
-        -- random delay so that group members' addons do not all announce at the same moment
-        C_Timer.After(ANNOUNCE_DELAY_MIN + math.random() * (ANNOUNCE_DELAY_MAX - ANNOUNCE_DELAY_MIN), function()
-            ProcessDrop(info, encounterID)
-        end)
-    else
-        ProcessDrop(info, encounterID)
-    end
+    ScheduleDrop(info, encounterID, lootListKey)
 end
 
 -- The game fires LOOT_HISTORY_UPDATE_DROP for every single roll of every player, and each check builds a sorted
@@ -1140,7 +1493,7 @@ local function Summarize(p)
         winnerEntry.roll = winnerEntry.roll or p.roll
         info.winner = winnerEntry
     end
-    RenderDrop(info)
+    ScheduleDrop(info) -- same path as the loot history: announce / hide when announced
 end
 
 local function OnLoot(msg)
@@ -1344,7 +1697,7 @@ local function UpdateGroupEvents()
         end
     end
     if not on then
-        wipe(announcedAt)
+        WipeCoordination() -- claims are only kept while announcing
     end
 end
 
@@ -1459,8 +1812,7 @@ local function RegisterPanel()
     local announceInit = AddChoice("announce", "Announce results",
         "Posts the roll results to your group in the same structure as your own block. Not sent while the game restricts addon chat. Waits a random moment and does not post an item another player's addon already posted.", {
             { "off", "Off", "Nothing is sent to other players." },
-            { "mine", "Only my wins", "When you win an item, the same block you see (item, winner, rolls) goes to party/raid chat, with raid markers for the colors." },
-            { "all", "All results", "The block for every item goes to party/raid chat. Follows the Detail setting. Duplicates are only possible if two members announce at the very same moment." },
+            { "all", "All results", "The block for every item (item, winner, rolls) goes to party/raid chat, with raid markers for the colors. Follows the Detail setting. Other members using this addon coordinate so each result is posted once." },
         }, nil, UpdateGroupEvents)
     local hideInit = AddBool("hideWhenAnnounced", "Hide my block when announced",
         "If the result was announced in group chat (by you or another player), your own detailed block is not printed again.")
@@ -1488,7 +1840,7 @@ end
 f = CreateFrame("Frame")
 f:RegisterEvent("ADDON_LOADED")
 f:RegisterEvent("PLAYER_LOGIN")
-f:SetScript("OnEvent", function(_, event, arg1, arg2)
+f:SetScript("OnEvent", function(_, event, arg1, arg2, arg3, arg4)
     if event == "ADDON_LOADED" and arg1 == ADDON then
         WhoWonThatDB = WhoWonThatDB or {}
         db = WhoWonThatDB
@@ -1501,12 +1853,20 @@ f:SetScript("OnEvent", function(_, event, arg1, arg2)
         for _, k in ipairs({ "boot", "mainLoaded", "debug", "schema", "transmog", "errors", "strings", "colors" }) do
             db[k] = nil
         end
+        -- the "Only my wins" announce mode was removed; saved "mine" becomes "all" (accepted by the author:
+        -- such players opted into announcing, and duplicates are prevented by the coordination)
+        if db.announce == "mine" then
+            db.announce = "all"
+        elseif db.announce ~= "all" then
+            db.announce = "off"
+        end
         ApplyDetail()
         -- no switches in the panel for these: always the intended behavior
         db.byBoss, db.classColors, db.header = true, true, true
         db.flagUnusable, db.hideOthers = true, true
         db.format = "summary"
         RegisterPanel()
+        RegisterComm() -- addon message prefix "WWT" (skipped quietly if the API is missing)
         f:UnregisterEvent("ADDON_LOADED") -- only ours is needed; stop hearing about every other addon
     elseif event == "PLAYER_LOGIN" then
         f:UnregisterEvent("PLAYER_LOGIN")
@@ -1538,6 +1898,10 @@ f:SetScript("OnEvent", function(_, event, arg1, arg2)
         UpdateGroupEvents() -- to see announcements made by other players (only when announcing)
         wasInGroup = IsInGroup and IsInGroup() or false
         f:RegisterEvent("GROUP_ROSTER_UPDATE") -- leaving a group resets the announcement state
+        if commReady then
+            f:RegisterEvent("CHAT_MSG_ADDON")        -- claims and version messages of other members' addons
+            f:RegisterEvent("PLAYER_ENTERING_WORLD") -- version message when already grouped (login, /reload)
+        end
         if hooksecurefunc and SetItemRef then
             hooksecurefunc("SetItemRef", OnBossLink) -- same way Questie handles its addon links
         end
@@ -1545,6 +1909,12 @@ f:SetScript("OnEvent", function(_, event, arg1, arg2)
         or event == "CHAT_MSG_RAID_LEADER" or event == "CHAT_MSG_INSTANCE_CHAT"
         or event == "CHAT_MSG_INSTANCE_CHAT_LEADER" then
         OnGroupChat(arg1, arg2)
+    elseif event == "CHAT_MSG_ADDON" then
+        OnAddonMessage(arg1, arg2, arg3, arg4) -- prefix, text, channel, sender
+    elseif event == "PLAYER_ENTERING_WORLD" then
+        if InAnyGroup() then
+            SendVersionSoon()
+        end
     elseif event == "GROUP_ROSTER_UPDATE" then
         OnGroupRosterUpdate()
     elseif event == "LOOT_HISTORY_UPDATE_DROP" then

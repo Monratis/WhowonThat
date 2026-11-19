@@ -1,5 +1,15 @@
 # Changelog
 
+## 4.6.10
+
+- Group announcement is clearer: the winner is named with "won by", every raid marker stands before the names it describes, groups are separated by ` // `, rolls are `Name:89`, and there are no Need/Greed/Pass words: `<WWT> [Item] (Boss) - won by {rt2} Winner:94 // {rt6} Second:88, Third:74 // {rt5} Fourth`.
+- Fewer double announcements: the player who won the item announces first (after 1-2 s), everyone else only as a fallback (4-7 s) and only if nobody did yet.
+- Players with the addon now talk to each other (addon messages, prefix `WWT`): the one who announces tells the group, so the others stay quiet and their own block is settled at once. Without other addon users, or during a boss fight, the old timings apply.
+- Your own block waits up to about 10 s for someone else's announcement before it is printed, so a result is no longer shown twice.
+- The chat-message fallback now also honours "Hide my block when announced".
+- A quiet one-line notice when a group member runs a newer version.
+- The "only my wins" announce mode is gone; a saved "mine" becomes "all".
+
 ## 4.6.9
 
 - Group announcements write rolls as `Name:89` and use the raid markers alone (no "Need"/"Greed"/"Pass" words): `{star} Winner:93 {greed} / {greed} Second:88 / {pass} Third`.
