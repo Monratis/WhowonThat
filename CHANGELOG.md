@@ -1,5 +1,14 @@
 # Changelog
 
+## 4.8.0
+
+- Loot summary pop-up: the window now slides out of the button, downwards or upwards depending on where there is room on the screen.
+- Loot summary pop-up: it now shows the dungeon name and what matters to you (the item you won, with its icon, or how much dropped and how many players).
+- Loot summary pop-up: you can move it from Esc > Options > AddOns > Who Won That (Move pop-up button / Reset position), and from the layout editors of Blizzard's Edit Mode, EllesmereUI, ElvUI, TukUI and SpartanUI.
+- Ninja loot: a Need roll on an item that is not for the winner's class (armor the class cannot wear, a shield, a bow, gun or wand it cannot use, or a primary stat that is not the class's) is marked in red in the loot summary (pulsing glow, "ninja loot" label, count in the footer) and in the chat block.
+- A newer version of the addon is now announced in chat, also from guild members (not only from your group).
+- The code is split into modules; Edit Mode support uses the embedded LibEditMode library.
+
 ## 4.7.2
 
 - Loot summary pop-up redesigned: dialog-style frame with an icon, a preview of the top winners (class-colored, e.g. Monra x3 - Casandra x2) and a tooltip with everyone. It sits at the top edge of the screen, fades after 25 seconds (longer while hovered); click opens the full window, `/wwt summary` reopens it later.

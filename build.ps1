@@ -42,7 +42,6 @@ New-Item -ItemType Directory -Force -Path $stageDir | Out-Null
 # Copy the addon files
 $filesToInclude = @(
     "WhoWonThat.toc",
-    "WhoWonThat.lua",
     "README.md",
     "LICENSE",
     "CHANGELOG.md"
@@ -54,6 +53,24 @@ foreach ($file in $filesToInclude) {
         Copy-Item -Path $src -Destination $stageDir
         Write-Host "  + $file" -ForegroundColor Gray
     }
+}
+
+# The code files: every file the .toc lists (so the package can never miss one)
+$tocFiles = Get-Content $tocPath | Where-Object { $_ -match '\.lua\s*$' } | ForEach-Object { $_.Trim() }
+foreach ($file in $tocFiles) {
+    $src = Join-Path $scriptDir $file
+    if (-not (Test-Path $src)) { throw "Listed in the .toc but missing: $file" }
+    $dest = Join-Path $stageDir $file
+    New-Item -ItemType Directory -Force -Path (Split-Path $dest) | Out-Null
+    Copy-Item -Path $src -Destination $dest
+    Write-Host "  + $file" -ForegroundColor Gray
+}
+
+# Embedded libraries (the .toc lists them through an .xml, so copy the whole folder)
+$libsSrc = Join-Path $scriptDir "src\libs"
+if (Test-Path $libsSrc) {
+    Copy-Item -Path $libsSrc -Destination (Join-Path $stageDir "src") -Recurse -Force
+    Write-Host "  + src\libs" -ForegroundColor Gray
 }
 
 # Remove old archives

@@ -25,7 +25,7 @@ jobs:
           luaVersion: "5.4"
 
       - name: Compile & Check Lua Syntax
-        run: luac -p WhoWonThat.lua
+        run: luac -p src/*.lua
 
       - name: Setup Luarocks
         uses: leafo/gh-actions-luarocks@v4
@@ -34,7 +34,7 @@ jobs:
         run: luarocks install luacheck
 
       - name: Run Luacheck
-        run: luacheck WhoWonThat.lua
+        run: luacheck src
 
   package:
     name: Build WoW Addon Zip & Release

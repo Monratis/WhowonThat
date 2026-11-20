@@ -3,6 +3,7 @@ std = "lua54"
 max_line_length = false
 unused = false
 allow_defined_top = true
+exclude_files = { "src/libs" } -- third-party libraries are used as they are
 
 -- Ignore certain warnings common in WoW addons
 ignore = {
@@ -22,6 +23,8 @@ globals = {
     "NUM_CHAT_WINDOWS",
     "ChatTypeInfo",
     "Settings",
+    "EventRegistry",
+    "HideUIPanel",
     "SlashCmdList",
     "SLASH_WHOWONTHAT1",
     "SLASH_WHOWONTHAT2",

@@ -26,3 +26,6 @@ desktop.ini
 
 # Screenshots used by the README and the CurseForge page
 !images/*.png
+
+# Local agent instructions (not committed)
+AGENTS.md
