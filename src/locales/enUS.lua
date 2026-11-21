@@ -91,6 +91,12 @@ ns.locales.enUS = {
     no_summary = "No loot summary yet. It fills with the items won during a dungeon run.",
     summary_after_combat = "The loot summary opens when combat ends.",
 
+    -- item values (Auctionator)
+    values_opt = "Show item values",
+    values_opt_tip = "Shows the auction house value of the items in the loot summary (in the item tooltip and as a total). The prices come from the Auctionator addon, so it needs Auctionator and a scan that includes the item.",
+    auction_value = "Auction value: %s",
+    total_value = "Total value: %s",
+
     -- summary window
     items = { one = "%d item", other = "%d items" },
     players = { one = "%d player", other = "%d players" },

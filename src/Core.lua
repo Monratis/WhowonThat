@@ -25,6 +25,7 @@ local DEFAULTS = {
     detail = "all",     -- how much to show: "winner", "rolls" (winner + Need/Greed) or "all" (also passes)
     layout = "auto",    -- "auto" = compact on a narrow chat window, "normal", or "compact"
     hintSeen = false,   -- the one-time "how to choose a chat window" tip was shown
+    showValues = true,  -- show auction house values (from Auctionator, when installed) in the loot summary
     language = "auto",  -- language of settings and messages: "auto" (the game's language) or a locale such as "deDE"
     summary = "everyone", -- loot summary window at the end of a dungeon: "off", "mine" (only my items) or "everyone"
 }

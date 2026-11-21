@@ -88,6 +88,11 @@ ns.locales.esES = {
     no_summary = "Aún no hay resumen del botín. Se llena con los objetos ganados durante una mazmorra.",
     summary_after_combat = "El resumen del botín se abre cuando termina el combate.",
 
+    values_opt = "Mostrar valor de los objetos",
+    values_opt_tip = "Muestra el valor en la casa de subastas de los objetos en el resumen del botín (en la descripción emergente del objeto y como total). Los precios vienen del addon Auctionator, así que necesitas Auctionator y un escaneo que incluya el objeto.",
+    auction_value = "Valor en subasta: %s",
+    total_value = "Valor total: %s",
+
     items = { one = "%d objeto", other = "%d objetos" },
     players = { one = "%d jugador", other = "%d jugadores" },
     yours = "(tuyos)",

@@ -266,8 +266,27 @@ local CLASS_PRIMARY = {
 local PRIMARY_STAT_KEYS = { ITEM_MOD_STRENGTH_SHORT = "str", ITEM_MOD_AGILITY_SHORT = "agi",
     ITEM_MOD_INTELLECT_SHORT = "int" }
 
--- Primary stats of an item as { str = true, ... } from the game's own item stats; nil when the client cannot
--- tell (item data not loaded yet), which never flags anything.
+-- Item stats the GearQuest Forever addon keeps for many items ({ str = 10, ... } by item ID), read only when that
+-- addon is installed. Its data addon loads on demand, so it is asked to load once.
+local function GearQuestStats(item)
+    local itemID = tonumber(item:match("item:(%d+)"))
+    local gearQuest = _G.GearQuest
+    if not (itemID and type(gearQuest) == "table") then
+        return nil
+    end
+    if not (type(gearQuest.Data) == "table" and gearQuest.Data.itemStats) then
+        local load = (C_AddOns and C_AddOns.LoadAddOn) or LoadAddOn
+        if load then
+            pcall(load, "GearQuestForever_ItemStats")
+        end
+    end
+    local stats = type(gearQuest.Data) == "table" and type(gearQuest.Data.itemStats) == "table"
+        and gearQuest.Data.itemStats[itemID]
+    return type(stats) == "table" and stats or nil
+end
+
+-- Primary stats of an item as { str = true, ... } from the game's own item stats, or from GearQuest's data when
+-- the client has none yet; nil when neither can tell, which never flags anything.
 local function PrimaryStats(item)
     local getStats = (C_Item and C_Item.GetItemStats) or GetItemStats
     if getStats then
@@ -282,6 +301,16 @@ local function PrimaryStats(item)
             end
             return found
         end
+    end
+    local known = GearQuestStats(item)
+    if known then
+        local found = {}
+        for _, short in pairs(PRIMARY_STAT_KEYS) do
+            if type(known[short]) == "number" and known[short] > 0 then
+                found[short] = true
+            end
+        end
+        return found
     end
     return nil
 end

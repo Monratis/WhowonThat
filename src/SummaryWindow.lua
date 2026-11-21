@@ -175,6 +175,8 @@ function ns.RenderSummary()
     fr.count:SetText(ns.Count("items", count) .. (mineOnly and (" " .. ns.L("yours")) or "")
         .. (unusable > 0 and (SUMMARY_DOT .. "|cffff5040" .. ns.L("ninja_footer", unusable) .. "|r") or ""))
     fr.detailsBtn:SetText(ns.summaryDetails and ns.L("board") or ns.L("details"))
+    local total, priced = ns.RunValue(run, mineOnly)
+    fr.value:SetText(priced > 0 and ns.L("total_value", ns.FormatMoney(total)) or "")
 end
 
 -- 1 pixel frame of four textures (flat look; no template needed)
@@ -454,6 +456,10 @@ local function CreateSummaryFrame()
     fr.count = fr:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     fr.count:SetPoint("BOTTOMLEFT", SUMMARY_PAD + 4, 19)
     fr.count:SetTextColor(MUTED_R, MUTED_G, MUTED_B)
+
+    fr.value = fr:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    fr.value:SetPoint("BOTTOMLEFT", SUMMARY_PAD + 4, 6)
+    fr.value:SetTextColor(MUTED_R, MUTED_G, MUTED_B)
 
     local function Close()
         fr:Hide()

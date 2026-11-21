@@ -88,6 +88,11 @@ ns.locales.zhCN = {
     no_summary = "还没有战利品总结。它会随着副本中赢得的物品而填充。",
     summary_after_combat = "战斗结束后会打开战利品总结。",
 
+    values_opt = "显示物品价值",
+    values_opt_tip = "在战利品总结中显示物品的拍卖行价值（在物品提示和合计中）。价格来自 Auctionator 插件，因此需要安装 Auctionator 并扫描过该物品。",
+    auction_value = "拍卖价值：%s",
+    total_value = "总价值：%s",
+
     items = { other = "%d 件物品" },
     players = { other = "%d 名玩家" },
     yours = "（你的）",

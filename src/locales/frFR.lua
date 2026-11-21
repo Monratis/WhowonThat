@@ -88,6 +88,11 @@ ns.locales.frFR = {
     no_summary = "Pas encore de résumé du butin. Il se remplit avec les objets gagnés pendant un donjon.",
     summary_after_combat = "Le résumé du butin s'ouvrira à la fin du combat.",
 
+    values_opt = "Afficher la valeur des objets",
+    values_opt_tip = "Affiche la valeur en hôtel des ventes des objets dans le résumé du butin (dans l'infobulle de l'objet et en total). Les prix viennent de l'addon Auctionator : il faut donc Auctionator et un scan qui inclut l'objet.",
+    auction_value = "Valeur à l'HV : %s",
+    total_value = "Valeur totale : %s",
+
     items = { one = "%d objet", other = "%d objets" },
     players = { one = "%d joueur", other = "%d joueurs" },
     yours = "(les vôtres)",

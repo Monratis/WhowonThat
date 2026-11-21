@@ -27,22 +27,11 @@ local function LastJournalEncounter(journalID)
     return PlainNumber(last) and last or nil
 end
 
--- Last boss of each known dungeon, by boss fight ID (same on every game language). Checked before the journal,
--- whose last entry is wrong for some dungeons (optional / side bosses). Data cross-checked against Podium's dungeon book.
-local FINAL_ENCOUNTERS = {}
-for _, id in ipairs({
-    167, 2747, 592, 471, 2755, 226, 2767, 2910, 382, 443, 2778, 448, 450, 445, 447, 437, 2785, 554, 600, 429, 493,
-    245, 275, 280, 3069, 346, 368, 361, 478, 484,
-    3496, 3354, 3303, 3482, 3479, 3451, 3409, 3334, 3502, -- WoW Forever dungeons
-}) do
-    FINAL_ENCOUNTERS[id] = true
-end
-local FOREVER_FIRST_ID = 3290 -- WoW Forever's own dungeon bosses: only the lists above are trusted there
+-- Dungeons the book does not know: only the Encounter Journal can tell the last boss. Its last entry is wrong for some
+-- dungeons (optional / side bosses), so the book is asked first.
+local FOREVER_FIRST_ID = 3290 -- WoW Forever's own dungeon bosses: only the book is trusted there
 
 local function IsFinalEncounter(encounterID)
-    if FINAL_ENCOUNTERS[encounterID] then
-        return true
-    end
     if encounterID >= FOREVER_FIRST_ID then
         return false
     end
@@ -152,10 +141,15 @@ local function SummaryOnEncounterEnd(encounterID, success, name)
     end
 end
 
--- A boss creature died (UNIT_DIED / PARTY_KILL or the combat death message). Counts the kill when the fight's own
--- events never came; waits a moment so the fight events (if any) count first, and never counts a boss twice.
-local function CountBossDeathSoon(run, boss)
-    if not (C_Timer and C_Timer.After) then
+-- A boss died according to the combat death message (for clients where the fight events never come). Counts the
+-- kill after a moment, so the fight events (if any) count first, and never counts a boss twice.
+local function SummaryOnDeathMessage(text)
+    local run = ns.summaryRun
+    if not run or run.left or run.ended or not (C_Timer and C_Timer.After) then
+        return
+    end
+    local boss = DungeonBook.BossOfDeathMessage(text)
+    if not boss then
         return
     end
     C_Timer.After(1, function()
@@ -167,29 +161,6 @@ local function CountBossDeathSoon(run, boss)
         end
         SummaryOnEncounterEnd(nil, 1, boss.name)
     end)
-end
-
-local function SummaryOnUnitDied(event, arg1, arg2)
-    local run = ns.summaryRun
-    if not run or run.left or run.ended then
-        return
-    end
-    local boss = DungeonBook.BossOfCreature(event == "PARTY_KILL" and arg2 or arg1)
-    if boss then
-        CountBossDeathSoon(run, boss)
-    end
-end
-
--- CHAT_MSG_COMBAT_HOSTILE_DEATH
-local function SummaryOnDeathMessage(text)
-    local run = ns.summaryRun
-    if not run or run.left or run.ended then
-        return
-    end
-    local boss = DungeonBook.BossOfDeathMessage(run, text)
-    if boss then
-        CountBossDeathSoon(run, boss)
-    end
 end
 
 -- LFG_COMPLETION_REWARD, CHALLENGE_MODE_COMPLETED, SCENARIO_COMPLETED
@@ -305,7 +276,6 @@ ns.Summary = {
     Refresh = function() RefreshSummaryWindow(ns.summaryShowing) end,
     OnZone = SummaryOnZone,
     OnEncounterEnd = SummaryOnEncounterEnd,
-    OnUnitDied = SummaryOnUnitDied,
     OnDeathMessage = SummaryOnDeathMessage,
     OnCompleted = SummaryOnCompleted,
     OnGroupLeft = SummaryOnGroupLeft,

@@ -88,6 +88,11 @@ ns.locales.itIT = {
     no_summary = "Ancora nessun riepilogo del bottino. Si riempie con gli oggetti vinti durante una spedizione.",
     summary_after_combat = "Il riepilogo del bottino si apre quando finisce il combattimento.",
 
+    values_opt = "Mostra il valore degli oggetti",
+    values_opt_tip = "Mostra il valore alla casa d'aste degli oggetti nel riepilogo del bottino (nel tooltip dell'oggetto e come totale). I prezzi provengono dall'addon Auctionator, quindi servono Auctionator e una scansione che includa l'oggetto.",
+    auction_value = "Valore all'asta: %s",
+    total_value = "Valore totale: %s",
+
     items = { one = "%d oggetto", other = "%d oggetti" },
     players = { one = "%d giocatore", other = "%d giocatori" },
     yours = "(tuoi)",

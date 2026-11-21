@@ -88,6 +88,11 @@ ns.locales.koKR = {
     no_summary = "아직 전리품 요약이 없습니다. 던전을 진행하며 획득한 아이템으로 채워집니다.",
     summary_after_combat = "전투가 끝나면 전리품 요약이 열립니다.",
 
+    values_opt = "아이템 가치 표시",
+    values_opt_tip = "전리품 요약에 아이템의 경매장 가치를 표시합니다(아이템 툴팁과 합계). 가격은 Auctionator 애드온에서 가져오므로 Auctionator와 해당 아이템이 포함된 스캔이 필요합니다.",
+    auction_value = "경매장 가치: %s",
+    total_value = "총 가치: %s",
+
     items = { other = "아이템 %d개" },
     players = { other = "%d명" },
     yours = "(내 것)",

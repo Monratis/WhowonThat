@@ -16,6 +16,7 @@ Made for **WoW Forever** (Midnight engine, Interface `16001`). No other addon ne
 - **Your chat tab** - results go to the tab you pick; other tabs are not touched.
 - **Class-colored names** (your custom palette if you use one) and a ninja icon on ninja loot: a Need roll on an item that is not for that class (armor it can't wear, wrong main stat), shouted for the winner.
 - **Detail and layout** - everyone's rolls, winner + Need/Greed, or winner only; compact layout on narrow tabs.
+- **Your language** - settings, windows and messages follow the game's language (English, German, French, Spanish, Italian, Portuguese, Russian, Korean, Chinese) or the language you pick in the settings. Messages to the group are always in English.
 - **Optional group announcement** (off by default) - your wins or all results, to party/raid; skips items another player already posted.
 
 ## Quick start
@@ -29,6 +30,8 @@ Made for **WoW Forever** (Midnight engine, Interface `16001`). No other addon ne
 - **A separate tab works best:** other loot messages (like "You receive loot") are hidden in the chosen tab.
 - Want a quiet chat? Turn *Loot* off in every tab (right-click the tab > Settings > Loot). The addon still shows its blocks.
 - **Dungeon loot summary:** when a dungeon ends, a small pop-up shows the top winners; click it to open a window that lists who got which items (hover for the tooltip, Shift-click to link, "Details" for the rolls). Choose Everyone / Only my items / Off in the options; `/wwt summary` reopens it.
+- **Item values (optional):** with the Auctionator addon and scanned prices, the loot summary shows each item's auction value in its tooltip and the total at the bottom.
+- **Works with other addons when installed:** Auctionator (prices), GearQuest Forever (item stats for the ninja loot check), ForeverDungeonJournal / AtlasLoot (boss links). Nothing is needed for the addon to work.
 - Commands: `/wwt` settings, `/wwt test` sample roll and sample summary window, `/wwt summary` last dungeon summary, `/wwt help`.
 
 ## Development
@@ -36,6 +39,11 @@ Made for **WoW Forever** (Midnight engine, Interface `16001`). No other addon ne
 - `build.ps1` builds `dist/WhoWonThat-v<version>.zip`.
 - CurseForge releases are built by the [BigWigs packager](https://github.com/BigWigsMods/packager) from a `v*` tag.
 - Changes: [CHANGELOG.md](CHANGELOG.md)
+
+## Credits
+
+- Fight IDs of the classic dungeons: [warcraft.wiki.gg DungeonEncounterID](https://warcraft.wiki.gg/wiki/DungeonEncounterID), licensed [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/).
+- The dungeon end detection was shaped by how the Podium addon decides when a run is over.
 
 ## License
 

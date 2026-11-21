@@ -92,7 +92,7 @@ f:SetScript("OnEvent", function(_, event, arg1, arg2, arg3, arg4, arg5)
         -- dungeon summary window: instance runs and the end of a dungeon. Events this client does not know are
         -- skipped (RegisterEvent raises an error for an unknown event).
         for _, ev in ipairs({ "PLAYER_ENTERING_WORLD", "ZONE_CHANGED_NEW_AREA", "ENCOUNTER_END",
-            "BOSS_KILL", "UNIT_DIED", "PARTY_KILL", "CHAT_MSG_COMBAT_HOSTILE_DEATH", "LFG_COMPLETION_REWARD", "CHALLENGE_MODE_COMPLETED", "SCENARIO_COMPLETED" }) do
+            "BOSS_KILL", "CHAT_MSG_COMBAT_HOSTILE_DEATH", "LFG_COMPLETION_REWARD", "CHALLENGE_MODE_COMPLETED", "SCENARIO_COMPLETED" }) do
             pcall(f.RegisterEvent, f, ev)
         end
         SummaryCall(ns.Summary.OnZone)
@@ -114,8 +114,6 @@ f:SetScript("OnEvent", function(_, event, arg1, arg2, arg3, arg4, arg5)
     elseif event == "BOSS_KILL" then
         -- backup: on some dungeons ENCOUNTER_END never fires (same kill twice is harmless, the run ends once)
         SummaryCall(ns.Summary.OnEncounterEnd, arg1, 1, arg2) -- encounterID, name
-    elseif event == "UNIT_DIED" or event == "PARTY_KILL" then
-        SummaryCall(ns.Summary.OnUnitDied, event, arg1, arg2)
     elseif event == "CHAT_MSG_COMBAT_HOSTILE_DEATH" then
         SummaryCall(ns.Summary.OnDeathMessage, arg1)
     elseif event == "LFG_COMPLETION_REWARD" or event == "CHALLENGE_MODE_COMPLETED" or event == "SCENARIO_COMPLETED" then

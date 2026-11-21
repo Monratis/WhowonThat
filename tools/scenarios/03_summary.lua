@@ -54,22 +54,29 @@ return {
         t.eq(World.screen(me):find("Lionheart Helm", 1, true), nil)
     end },
 
-    { "no fight events at all: the death of the last boss creature ends the dungeon", function(w, t)
+    { "a known dungeon's side boss that the journal lists last does not end the dungeon", function(w, t)
         local me = setup(w)
         w:encounter(2, "Cookie")
         w:drop(2, item(12640, "Lionheart Helm")):roll("Monra", "need", 90):finish("Monra")
-        me.fire("UNIT_DIED", "Creature-0-1-36-1-639-0000ABCDEF")
-        w:advance(30)
-        t.has(World.screen(me), "Lionheart Helm")
+        kill(w, me, 2, "Cookie")
+        w:advance(40)
+        t.lacks(World.screen(me), "Deadmines")
     end },
 
-    { "Sunken Temple: Forever's own fight ID 3584 for the last boss ends the dungeon", function(w, t)
-        local me = setup(w, nil, TEMPLE)
-        w:encounter(3584, "Shade of Eranikus")
-        w:drop(3584, item(12640, "Lionheart Helm")):roll("Monra", "need", 90):finish("Monra")
-        kill(w, me, 3584, "Shade of Eranikus")
+    { "Ragefire Chasm ends only when all four bosses are down", function(w, t)
+        local rfc = { name = "Ragefire Chasm", id = 389, type = "party", mapID = 213, journalID = 226,
+            encounters = { { id = 430, name = "Oggleflint" } } }
+        local me = setup(w, nil, rfc)
+        w:encounter(433, "Bazzalan")
+        w:drop(433, item(12640, "Lionheart Helm")):roll("Monra", "need", 90):finish("Monra")
+        kill(w, me, 430, "Oggleflint")
+        kill(w, me, 431, "Taragaman the Hungerer")
+        kill(w, me, 432, "Jergosh the Invoker")
+        w:advance(40)
+        t.lacks(World.screen(me), "Ragefire")
+        kill(w, me, 433, "Bazzalan")
         w:advance(30)
-        t.has(World.screen(me), "Lionheart Helm")
+        t.has(World.screen(me), "Ragefire")
     end },
 
     { "no fight events: the combat message 'Edwin VanCleef dies.' ends the dungeon", function(w, t)

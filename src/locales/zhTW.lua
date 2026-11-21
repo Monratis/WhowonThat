@@ -88,6 +88,11 @@ ns.locales.zhTW = {
     no_summary = "還沒有戰利品總結。它會隨著副本中贏得的物品而填入。",
     summary_after_combat = "戰鬥結束後會開啟戰利品總結。",
 
+    values_opt = "顯示物品價值",
+    values_opt_tip = "在戰利品總結中顯示物品的拍賣場價值（在物品提示和合計中）。價格來自 Auctionator 插件，因此需要安裝 Auctionator 並掃描過該物品。",
+    auction_value = "拍賣價值：%s",
+    total_value = "總價值：%s",
+
     items = { other = "%d 件物品" },
     players = { other = "%d 名玩家" },
     yours = "（你的）",

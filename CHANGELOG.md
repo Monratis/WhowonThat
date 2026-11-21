@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.8.3
+
+- Loot summary: with the Auctionator addon and scanned prices, each item's auction value shows in its tooltip and the total value at the bottom of the window. A new option "Show item values" turns it off.
+- Ninja loot check: when the game has no stats for an item yet, the GearQuest Forever addon's item data is used if that addon is installed.
+- The dungeon end detection now uses an own, smaller dungeon book (last boss of each dungeon by fight ID and name; every boss for Ragefire Chasm and The Stockade) instead of data taken from another addon. A boss that is not the last one of a known dungeon never ends the run.
+- README: credits for the source of the classic dungeon fight IDs (warcraft.wiki.gg, CC BY-SA 4.0).
+
 ## 4.8.2
 
 - Language: the settings, the loot summary window and pop-up and the messages shown to you now follow the game's language (English, German, French, Spanish, Italian, Portuguese, Russian, Korean, Simplified and Traditional Chinese). You can also pick a language in the settings (Language). Messages sent to the group always stay in English.

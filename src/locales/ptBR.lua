@@ -88,6 +88,11 @@ ns.locales.ptBR = {
     no_summary = "Ainda não há resumo do saque. Ele se preenche com os itens ganhos durante uma masmorra.",
     summary_after_combat = "O resumo do saque abre quando o combate termina.",
 
+    values_opt = "Mostrar valor dos itens",
+    values_opt_tip = "Mostra o valor na casa de leilões dos itens no resumo do saque (na dica do item e como total). Os preços vêm do addon Auctionator, então é preciso ter o Auctionator e uma varredura que inclua o item.",
+    auction_value = "Valor no leilão: %s",
+    total_value = "Valor total: %s",
+
     items = { one = "%d item", other = "%d itens" },
     players = { one = "%d jogador", other = "%d jogadores" },
     yours = "(seus)",

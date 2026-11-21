@@ -267,6 +267,10 @@ local function ItemButtonEnter(self)
     if self.cantUse then
         GameTooltip:AddLine(ns.L("ninja_tip"), WARN_R, 0.35, 0.3, true)
     end
+    local price = ns.ItemPrice(self.link)
+    if price then
+        GameTooltip:AddLine(ns.L("auction_value", ns.FormatMoney(price)), 1, 1, 1)
+    end
     GameTooltip:Show()
 end
 

@@ -88,6 +88,11 @@ ns.locales.deDE = {
     no_summary = "Noch keine Beute-Zusammenfassung. Sie füllt sich mit den Gegenständen, die du in einem Dungeon gewinnst.",
     summary_after_combat = "Die Beute-Zusammenfassung öffnet sich, wenn der Kampf endet.",
 
+    values_opt = "Gegenstandswerte anzeigen",
+    values_opt_tip = "Zeigt den Auktionshauswert der Gegenstände in der Beute-Zusammenfassung (im Gegenstands-Tooltip und als Summe). Die Preise stammen vom Addon Auctionator, du brauchst es also samt einem Scan, der den Gegenstand enthält.",
+    auction_value = "Auktionshauswert: %s",
+    total_value = "Gesamtwert: %s",
+
     items = { one = "%d Gegenstand", other = "%d Gegenstände" },
     players = { one = "%d Spieler", other = "%d Spieler" },
     yours = "(deine)",

@@ -153,6 +153,8 @@ local function RegisterPanel()
         SummaryCall(ns.Summary.Refresh)
     end)
 
+    AddBool("showValues", L("values_opt"), L("values_opt_tip"))
+
     -- ===== Language =====
     Header(L("hdr_language"))
 
