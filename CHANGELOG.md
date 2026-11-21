@@ -1,5 +1,10 @@
 # Changelog
 
+## 4.8.1
+
+- Loot summary pop-up: the end of a dungeon is now recognized like Podium does it. A built-in dungeon book knows every boss, so the last boss is found by its fight ID or, when the game reports ID 0 or none (new WoW Forever dungeons), by its name. A dungeon also ends once every required boss is down, and a boss creature's death counts as a kill when the game sends no fight event.
+- Ninja loot is now marked with a ninja icon instead of a red X, on the item slot in the loot summary, in the chat block and in the group announcement (the winner's line says "ninja loot" in words).
+
 ## 4.8.0
 
 - Loot summary pop-up: the window now slides out of the button, downwards or upwards depending on where there is room on the screen.

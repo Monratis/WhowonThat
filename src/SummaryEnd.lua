@@ -1,6 +1,7 @@
 -- Who Won That: dungeon loot summary: end-of-dungeon detection and the Summary table other files use.
 local _, ns = ...
 
+local DungeonBook = ns.DungeonBook
 local AddRosterName, HAS_HISTORY, InstanceRunInfo, NewRun = ns.AddRosterName, ns.HAS_HISTORY, ns.InstanceRunInfo, ns.NewRun
 local PlainNumber, RecordWin, RefreshSummaryWindow, ShowSummarySoon = ns.PlainNumber, ns.RecordWin, ns.RefreshSummaryWindow, ns.ShowSummarySoon
 local ShowSummaryWhenSafe, SnapshotRoster, SummaryCommand, UsableName = ns.ShowSummaryWhenSafe, ns.SnapshotRoster, ns.SummaryCommand, ns.UsableName
@@ -36,46 +37,11 @@ for _, id in ipairs({
 }) do
     FINAL_ENCOUNTERS[id] = true
 end
--- Dungeons with no single last boss: over when every boss is down (each entry = ids of one boss, any language/build)
-local ALL_BOSS_SETS = {
-    { { 430, 2732 }, { 431, 2733 }, { 432, 2734 }, { 433, 2735 } }, -- Ragefire Chasm
-    { { 2756 }, { 2757 }, { 2758 }, { 2759 }, { 2760 } },           -- The Stockade
-}
-local FOREVER_FIRST_ID = 3290 -- WoW Forever's own dungeon bosses: only the table above is trusted there
+local FOREVER_FIRST_ID = 3290 -- WoW Forever's own dungeon bosses: only the lists above are trusted there
 
-local function KnownFinalEncounter(run, encounterID)
+local function IsFinalEncounter(encounterID)
     if FINAL_ENCOUNTERS[encounterID] then
         return true
-    end
-    run.killedEnc = run.killedEnc or {}
-    run.killedEnc[encounterID] = true
-    for _, set in ipairs(ALL_BOSS_SETS) do
-        local inSet, all = false, true
-        for _, ids in ipairs(set) do
-            local down = false
-            for _, id in ipairs(ids) do
-                if id == encounterID then
-                    inSet = true
-                end
-                if run.killedEnc[id] then
-                    down = true
-                end
-            end
-            all = all and down
-        end
-        if inSet then
-            return all
-        end
-    end
-    return nil
-end
-
-local function IsFinalEncounter(encounterID, run)
-    if run then
-        local known = KnownFinalEncounter(run, encounterID)
-        if known ~= nil then
-            return known
-        end
     end
     if encounterID >= FOREVER_FIRST_ID then
         return false
@@ -163,18 +129,49 @@ local function SummaryEnd(run, encounterID)
     C_Timer.After(SUMMARY_SETTLE, Check)
 end
 
-local function SummaryOnEncounterEnd(encounterID, success)
+-- A boss was killed. The fight ID can be missing or 0 on new WoW Forever dungeons: the boss name decides then.
+local function SummaryOnEncounterEnd(encounterID, success, name)
     local run = ns.summaryRun
-    if not run or run.left or not PlainNumber(encounterID) or (issecretvalue and issecretvalue(success)) then
+    if not run or run.left or (issecretvalue and issecretvalue(success)) then
         return
     end
     if success ~= 1 and success ~= true then
         return -- wipe
     end
-    run.lastEncounterID = encounterID
-    if IsFinalEncounter(encounterID, run) then
-        SummaryEnd(run, encounterID)
+    local id = PlainNumber(encounterID) and encounterID > 0 and encounterID or nil
+    run.lastKillAt = GetTime()
+    if id then
+        run.lastEncounterID = id
     end
+    local ended = DungeonBook.EndedBy(run, id, name)
+    if ended == nil and id then
+        ended = IsFinalEncounter(id)
+    end
+    if ended then
+        SummaryEnd(run, id)
+    end
+end
+
+-- UNIT_DIED / PARTY_KILL: a boss creature died. Counts the kill when the fight's own events never came;
+-- waits a moment so the fight events (if any) count first, and never counts the same boss twice.
+local function SummaryOnUnitDied(event, arg1, arg2)
+    local run = ns.summaryRun
+    if not run or run.left or run.ended or not (C_Timer and C_Timer.After) then
+        return
+    end
+    local boss = DungeonBook.BossOfCreature(event == "PARTY_KILL" and arg2 or arg1)
+    if not boss then
+        return
+    end
+    C_Timer.After(1, function()
+        if ns.summaryRun ~= run or run.left or run.ended or DungeonBook.WasKilled(run, boss) then
+            return
+        end
+        if run.lastKillAt and GetTime() - run.lastKillAt < 10 then
+            return -- the fight's own event just counted a kill
+        end
+        SummaryOnEncounterEnd(nil, 1, boss.name)
+    end)
 end
 
 -- LFG_COMPLETION_REWARD, CHALLENGE_MODE_COMPLETED, SCENARIO_COMPLETED
@@ -290,6 +287,7 @@ ns.Summary = {
     Refresh = function() RefreshSummaryWindow(ns.summaryShowing) end,
     OnZone = SummaryOnZone,
     OnEncounterEnd = SummaryOnEncounterEnd,
+    OnUnitDied = SummaryOnUnitDied,
     OnCompleted = SummaryOnCompleted,
     OnGroupLeft = SummaryOnGroupLeft,
     OnRosterUpdate = SummaryOnRosterUpdate,

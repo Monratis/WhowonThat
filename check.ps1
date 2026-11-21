@@ -49,6 +49,10 @@ Write-Host "3. Load test" -ForegroundColor Cyan
 Push-Location $root
 lua tools/loadtest.lua
 if ($LASTEXITCODE -ne 0) { $problems++ }
+
+Write-Host "4. Simulator scenarios (tools/scenarios, run against a fake WoW client)" -ForegroundColor Cyan
+lua tools/sim/run.lua
+if ($LASTEXITCODE -ne 0) { $problems++ }
 Pop-Location
 
 if ($problems -eq 0) { Write-Host "`nAll checks passed." -ForegroundColor Green; exit 0 }

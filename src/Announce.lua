@@ -25,7 +25,7 @@ local ANNOUNCE_PREFIX_SHORT = "<WWT> "            -- every later one is shorter
 local KNOWN_PREFIXES = { ANNOUNCE_PREFIX, ANNOUNCE_PREFIX_SHORT, "Who Won That: ", "WWT: " }
 local announcedOnce = false
 -- Group chat cannot carry colors or custom icons, but it accepts the raid target markers. Their own colors
--- echo the block in your chat: orange = Need, blue = Greed, grey moon = pass, red X = cannot use. Every marker
+-- echo the block in your chat: orange = Need, blue = Greed, grey moon = pass, red X = ninja loot (a Need on an item that is not for that class). Every marker
 -- stands BEFORE the names it describes (never trailing a roll), and the winner is named in words ("won by").
 local MARK = { need = "{rt2}", greed = "{rt6}", pass = "{rt5}", cantUse = "{rt7}" }
 local GROUP_SEP = " // " -- between roll groups; a plain " / " got lost between the icons
@@ -480,14 +480,16 @@ local function AnnounceLines(info, encounterID)
         return { head .. " - " .. MARK.pass .. " everyone passed" }, Commit
     end
 
-    local function Flag(r, st)
+    -- A red X after a Need roll on an item that is not for the class. The winner gets the words too: the X alone
+    -- tells nobody in group chat what it means, and the winner is the one who got the item.
+    local function Flag(r, st, isWinner)
         if ns.db.flagUnusable and st.kind == "need" and not CanClassUse(r.playerClass, item) then
-            return " " .. MARK.cantUse
+            return " " .. MARK.cantUse .. (isWinner and " ninja loot" or "")
         end
         return ""
     end
-    local function Entry(r, st)
-        return AnnounceName(r.playerName) .. (r.roll and (":" .. r.roll) or "") .. Flag(r, st)
+    local function Entry(r, st, isWinner)
+        return AnnounceName(r.playerName) .. (r.roll and (":" .. r.roll) or "") .. Flag(r, st, isWinner)
     end
 
     local winner = info.winner
@@ -507,7 +509,7 @@ local function AnnounceLines(info, encounterID)
     end
 
     -- Compact layout, rolls grouped by type so the type marker is written once, BEFORE its names:
-    --   <WWT> [Item] (Boss) - won by {need} Winner:94 {cantUse} // {greed} Second, Third // {pass} Fifth, Sixth
+    --   <WWT> [Item] (Boss) - won by {need} Winner:94 {cantUse} ninja loot // {greed} Second, Third // {pass} Fifth, Sixth
     --   <WWT> [Item] - won by {greed} Winner:93 // {greed} Second:88, Third:74 // {need} OS Fourth:40
     -- (greed rolls that lost to a Need have no number, so they are names only)
     -- tokens = pieces with the separator that goes before them, so the end can be cut cleanly.
@@ -519,7 +521,7 @@ local function AnnounceLines(info, encounterID)
     if ns.db.wins and type(winner) == "table" and UsableName(winner.playerName) then
         local wst = STATE_INFO[winner.state]
         if wst then
-            tokens[#tokens + 1] = { " - ", "won by " .. GroupStart(wst) .. Entry(winner, wst) }
+            tokens[#tokens + 1] = { " - ", "won by " .. GroupStart(wst) .. Entry(winner, wst, true) }
         else
             tokens[#tokens + 1] = { " - ", "won by " .. AnnounceName(winner.playerName) }
         end

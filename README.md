@@ -14,7 +14,7 @@ Made for **WoW Forever** (Midnight engine, Interface `16001`). No other addon ne
 
 - **One block per item** - winner first, everyone else sorted by roll, passes on one line.
 - **Your chat tab** - results go to the tab you pick; other tabs are not touched.
-- **Class-colored names** (your custom palette if you use one) and a red X on Need rolls for armor that class can't wear.
+- **Class-colored names** (your custom palette if you use one) and a ninja icon on ninja loot: a Need roll on an item that is not for that class (armor it can't wear, wrong main stat), shouted for the winner.
 - **Detail and layout** - everyone's rolls, winner + Need/Greed, or winner only; compact layout on narrow tabs.
 - **Optional group announcement** (off by default) - your wins or all results, to party/raid; skips items another player already posted.
 

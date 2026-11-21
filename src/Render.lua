@@ -81,8 +81,10 @@ local function Truncate(name, max)
     return table.concat(chars, "", 1, max - 2) .. ".."
 end
 
--- Red X icon (the game's "not ready" mark), used to flag a Need roll the player's class cannot use
-local ICON_CANT_USE = "|TInterface\\RaidFrame\\ReadyCheck-NotReady:14:14:0:0|t"
+-- Ninja icon (the game's stealth icon, cropped to its picture) flags ninja loot: a Need roll on an item that is
+-- not for the player's class. The path is also used by the loot summary window.
+local NINJA_ICON_PATH = "Interface\\Icons\\Ability_Stealth"
+local ICON_NINJA = "|T" .. NINJA_ICON_PATH .. ":14:14:0:0:64:64:5:59:5:59|t"
 
 -- Chat windows cannot center text, so we measure it: the width of the window and of the text in the
 -- window's own font tell us how many spaces to put in front of the line.
@@ -383,10 +385,12 @@ local function RenderDropBody(Emit, frame, info, encounterID)
         return compact and Truncate(short, COMPACT_NAME_LENGTH) or short
     end
 
-    -- red X (and "ninja loot" text on a wide window) at the end of a Need roll on an item that is not for the class
-    local function Flag(r, st)
+    -- ninja icon (and "ninja loot" text on a wide window) at the end of a Need roll on an item that is not for the
+    -- class; for the winner it is shouted, because that one actually got the item
+    local function Flag(r, st, isWinner)
         if ns.db.flagUnusable and st.kind == "need" and not CanClassUse(r.playerClass, item) then
-            return "  " .. ICON_CANT_USE .. (compact and "" or " |cffff4040ninja loot|r")
+            local word = isWinner and "NINJA LOOT" or "ninja loot"
+            return "  " .. ICON_NINJA .. (compact and "" or (" |cffff4040" .. word .. "|r"))
         end
         return nil
     end
@@ -398,7 +402,7 @@ local function RenderDropBody(Emit, frame, info, encounterID)
             .. "  |cffffd100WON|r"
         local wst = STATE_INFO[winner.state]
         if wst then
-            line = line .. "  " .. RollLabel(winner, wst, true, Flag(winner, wst))
+            line = line .. "  " .. RollLabel(winner, wst, true, Flag(winner, wst, true))
         end
         Emit(frame, line, "LOOT")
     end
@@ -452,5 +456,6 @@ end
 
 -- ===== shared with the other files =====
 ns.CanClassUse, ns.EncounterName, ns.KIND_ICON, ns.LABEL_COLOR = CanClassUse, EncounterName, KIND_ICON, LABEL_COLOR
+ns.ICON_NINJA, ns.NINJA_ICON_PATH = ICON_NINJA, NINJA_ICON_PATH
 ns.OnBossLink, ns.ROLL_STATE, ns.RenderDrop, ns.RollOrder = OnBossLink, ROLL_STATE, RenderDrop, RollOrder
 ns.STATE_INFO, ns.ShortName, ns.UsableName, ns.printedDrops = STATE_INFO, ShortName, UsableName, printedDrops

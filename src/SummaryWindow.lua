@@ -134,7 +134,7 @@ local function RenderDetails(run, mineOnly, width)
                 .. (d.tag and (" |cff" .. (LABEL_COLOR[d.kind] or "aaaaaa") .. d.tag .. "|r") or "")
                 .. (d.roll and (" " .. d.roll) or "")
             if bad then
-                roll = "|cffff5040ninja loot|r " .. roll
+                roll = ns.ICON_NINJA .. " |cffff5040ninja loot|r " .. roll
             end
             row.roll:SetText(roll ~= "" and roll or "|cff6c695f-|r")
             y = y + DETAIL_ROW

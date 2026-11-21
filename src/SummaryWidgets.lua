@@ -183,6 +183,19 @@ local function MarkCantUse(w, on)
         return
     end
     if on then
+        if not w.ninja then
+            -- the ninja icon sits on the slot's lower right corner
+            w.ninja = w:CreateTexture(nil, "OVERLAY", nil, 4)
+            local size = w.border:GetWidth() >= 24 and 15 or 12
+            w.ninja:SetSize(size, size)
+            w.ninja:SetPoint("BOTTOMRIGHT", w.border, "BOTTOMRIGHT", 3, -3)
+            if TrySetFile(w.ninja, ns.NINJA_ICON_PATH) then
+                w.ninja:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+            else
+                w.ninja:SetColorTexture(WARN_R, WARN_G, WARN_B, 1)
+            end
+        end
+        w.ninja:Show()
         if w.glow then
             w.glow:Hide() -- the quality glow would mix with the red one
         end
@@ -196,6 +209,9 @@ local function MarkCantUse(w, on)
     else
         w.warnPulse:Stop()
         w.warn:Hide()
+        if w.ninja then
+            w.ninja:Hide()
+        end
     end
 end
 
