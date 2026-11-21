@@ -23,6 +23,8 @@ local GLOBAL_STRINGS = {
     LOOT_ROLL_WON = "%s won: %s",
     LOOT_ROLL_YOU_WON = "You won: %s",
     LOOT_ROLL_ALL_PASSED = "Everyone passed on: %s",
+    UNITDIESOTHER = "%s dies.",
+    SELFKILLOTHER = "You have slain %s!",
     MISCELLANEOUS = "Miscellaneous",
 }
 
@@ -172,7 +174,7 @@ function Wow.new(opts)
         filters = {}, group = nil, instance = nil, addonMessages = {}, db = nil, peers = {}, seq = 0,
         knownEvents = {},
     }
-    for ev in ([[ADDON_LOADED PLAYER_LOGIN PLAYER_ENTERING_WORLD ZONE_CHANGED_NEW_AREA ENCOUNTER_END BOSS_KILL UNIT_DIED PARTY_KILL
+    for ev in ([[ADDON_LOADED PLAYER_LOGIN PLAYER_ENTERING_WORLD ZONE_CHANGED_NEW_AREA ENCOUNTER_END BOSS_KILL UNIT_DIED PARTY_KILL CHAT_MSG_COMBAT_HOSTILE_DEATH
         LFG_COMPLETION_REWARD CHALLENGE_MODE_COMPLETED SCENARIO_COMPLETED GROUP_ROSTER_UPDATE
         LOOT_HISTORY_UPDATE_DROP CHAT_MSG_LOOT CHAT_MSG_ADDON]]):gmatch("%S+") do
         client.knownEvents[ev] = true
@@ -218,6 +220,7 @@ function Wow.new(opts)
 
     -- ----- time and timers -----
     env.GetTime = function() return client.now end
+    env.GetLocale = function() return opts.locale or "enUS" end
     local function addTimer(delay, fn, repeating)
         client.seq = client.seq + 1
         local t = { at = client.now + delay, fn = fn, seq = client.seq, interval = repeating and delay or nil }

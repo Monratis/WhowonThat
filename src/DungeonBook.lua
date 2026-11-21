@@ -33,7 +33,7 @@ local RAW = {
     ["shapers terrace"] = { "shapers terrace", "?nanaya", "titanosaur:253201:3498:;venomridge:261813:3501:;thunderhoof:261812:3500:;direhorn matriarch:262127:3507:;cinder:261974:3503:;bolt:262081:3505:;snowtalon:262297:3597:;vitrix:272561:3600:;izharel and torrel:253218::;nanaya:261809:3502:" },
     ["stratholme living"] = { "stratholme", "balnazzar", "skul:10393::o;hearthsinger forresten:10558:473:o;the unforgiven:10516:472:;timmy the cruel:10808:474:;malor the zealous:11032:476:o;postmaster malown:11143:2798:o;cannon master willey:10997:475:;archivist galford:10811:477:;balnazzar:10813:478:" },
     ["stratholme undead"] = { "stratholme", "baron rivendare", "stonespine:10809::o;nerubenkan:10437:480:;baroness anastari:10436:479:;maleki the pallid:10438:481:;magistrate barthilas:10435:482:;ramstein the gorger:10439:483:;baron rivendare:10440:484:" },
-    ["sunken temple"] = { "sunken temple", "shade of eranikus", "atalalarion:8580::;morphaz hazzas:5719:490,491:;jammalan the prophet:5710:488:;ogom the wretched:5711::;dreamscythe weaver:5721:486,487:;shade of eranikus:5709:493:;avatar of hakkar:8443:492:" },
+    ["sunken temple"] = { "sunken temple", "shade of eranikus", "atalalarion:8580::;morphaz hazzas:5719:490,491:;jammalan the prophet:5710:488:;ogom the wretched:5711::;dreamscythe weaver:5721:486,487:;shade of eranikus:5709:493,3584:;avatar of hakkar:8443:492:" },
     ["deadmines"] = { "deadmines", "edwin vancleef", "rhahkzor:644:161,2741:;miner johnson:3586::o;sneeds shredder:642::;sneed:643:162,2742:;gilnid:1763:163,2743:;mr smite:646:164,2745:;captain greenskin:647:166,2744:;edwin vancleef:639:167,2747:;cookie:645:165,2746:o" },
     ["drowned city"] = { "drowned city", "minloth the serpent", "zulalai:258905:3474:;vartaka:258924:3475:;captain dreadrise:260042:3476:;deathless marrow::3478:;gill:264177::o;umbra:264172::o;pyromancer braxton:260468::o;minloth the serpent:260274:3479:;primeval elemental::3511:o" },
     ["stockade"] = { "stockade", "", "targorr the dread:1696:2756:;kam deepfury:1666:2757:;hamhock:1717:2758:;dextren ward:1663:2759:;bazil thredd:1716:2760:;bruegal ironknuckle:1720::o" },
@@ -159,5 +159,33 @@ local function BossOfCreature(guid)
     return hit and hit[2]
 end
 
+-- The boss named in a combat death message ("Edwin VanCleef dies.", "You have slain Edwin VanCleef!"), if it is
+-- one of this run's dungeon bosses. The patterns come from the game's own strings, so it works in any language
+-- as long as the boss name the client prints is a name the book knows.
+local deathPatterns
+local function MessagePattern(format)
+    if type(format) ~= "string" then
+        return nil
+    end
+    local escaped = format:gsub("[%^%$%(%)%.%[%]%*%+%-%?]", "%%%0"):gsub("%%%d%$s", "%%s")
+    return "^" .. escaped:gsub("%%s", "(.+)") .. "$"
+end
+
+local function BossOfDeathMessage(run, text)
+    if type(text) ~= "string" or (issecretvalue and issecretvalue(text)) then
+        return nil
+    end
+    deathPatterns = deathPatterns or { MessagePattern(_G.UNITDIESOTHER), MessagePattern(_G.SELFKILLOTHER) }
+    for _, pattern in pairs(deathPatterns) do
+        local name = text:match(pattern)
+        if name then
+            local _, boss = Where(nil, name, run.name)
+            return boss
+        end
+    end
+    return nil
+end
+
 -- ===== shared with the other files =====
-ns.DungeonBook = { EndedBy = EndedBy, WasKilled = WasKilled, BossOfCreature = BossOfCreature }
+ns.DungeonBook = { EndedBy = EndedBy, WasKilled = WasKilled, BossOfCreature = BossOfCreature,
+    BossOfDeathMessage = BossOfDeathMessage }

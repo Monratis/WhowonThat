@@ -5,12 +5,15 @@ local item = World.item
 local DUNGEON = { name = "Deadmines", id = 36, type = "party", mapID = 10, journalID = 63,
     encounters = { { id = 1, name = "Glubtok" }, { id = 2, name = "Cookie" } } }
 
-local function setup(w, summary)
+local TEMPLE = { name = "Sunken Temple", id = 109, type = "party", mapID = 109, journalID = 237,
+    encounters = { { id = 3584, name = "Shade of Eranikus" } } }
+
+local function setup(w, summary, dungeon)
     local me = w:addClient({ name = "Monra", class = "MAGE", savedVariables = { summary = summary or "everyone" } })
     local b = w:addClient({ name = "Brakk", class = "WARRIOR" })
     local s = w:addClient({ name = "Seluna", class = "PRIEST" })
     w:formGroup({ me, b, s }, "instance")
-    w:enterInstance({ me, b, s }, DUNGEON)
+    w:enterInstance({ me, b, s }, dungeon or DUNGEON)
     return me, b, s
 end
 
@@ -56,6 +59,24 @@ return {
         w:encounter(2, "Cookie")
         w:drop(2, item(12640, "Lionheart Helm")):roll("Monra", "need", 90):finish("Monra")
         me.fire("UNIT_DIED", "Creature-0-1-36-1-639-0000ABCDEF")
+        w:advance(30)
+        t.has(World.screen(me), "Lionheart Helm")
+    end },
+
+    { "Sunken Temple: Forever's own fight ID 3584 for the last boss ends the dungeon", function(w, t)
+        local me = setup(w, nil, TEMPLE)
+        w:encounter(3584, "Shade of Eranikus")
+        w:drop(3584, item(12640, "Lionheart Helm")):roll("Monra", "need", 90):finish("Monra")
+        kill(w, me, 3584, "Shade of Eranikus")
+        w:advance(30)
+        t.has(World.screen(me), "Lionheart Helm")
+    end },
+
+    { "no fight events: the combat message 'Edwin VanCleef dies.' ends the dungeon", function(w, t)
+        local me = setup(w)
+        w:encounter(2, "Cookie")
+        w:drop(2, item(12640, "Lionheart Helm")):roll("Monra", "need", 90):finish("Monra")
+        me.fire("CHAT_MSG_COMBAT_HOSTILE_DEATH", "Edwin VanCleef dies.")
         w:advance(30)
         t.has(World.screen(me), "Lionheart Helm")
     end },

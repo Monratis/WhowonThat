@@ -100,7 +100,7 @@ end
 -- (+ "OS") and number. Returns the height.
 local function RenderDetails(run, mineOnly, width)
     PlaceBand(0, DETAIL_HEAD, "head")
-    local heads = { { "Item", "LEFT", 32 }, { "Winner", "LEFT", 244 }, { "Roll", "RIGHT", -6 } }
+    local heads = { { ns.L("col_item"), "LEFT", 32 }, { ns.L("col_winner"), "LEFT", 244 }, { ns.L("col_roll"), "RIGHT", -6 } }
     for _, h in ipairs(heads) do
         local fs = Acquire("text", MakeText)
         fs:SetPoint(h[2], ns.summaryContent, "TOP" .. h[2], h[3], -DETAIL_HEAD / 2)
@@ -134,7 +134,7 @@ local function RenderDetails(run, mineOnly, width)
                 .. (d.tag and (" |cff" .. (LABEL_COLOR[d.kind] or "aaaaaa") .. d.tag .. "|r") or "")
                 .. (d.roll and (" " .. d.roll) or "")
             if bad then
-                roll = ns.ICON_NINJA .. " |cffff5040ninja loot|r " .. roll
+                roll = ns.ICON_NINJA .. " |cffff5040" .. ns.L("ninja_row") .. "|r " .. roll
             end
             row.roll:SetText(roll ~= "" and roll or "|cff6c695f-|r")
             y = y + DETAIL_ROW
@@ -151,7 +151,7 @@ function ns.RenderSummary()
     ReleaseAll()
     local mineOnly = ns.db and ns.db.summary == "mine"
     local count = VisibleCount(run, mineOnly)
-    fr.sub:SetText(run.name .. SUMMARY_DOT .. run.rosterCount .. (run.rosterCount == 1 and " player" or " players"))
+    fr.sub:SetText(run.name .. SUMMARY_DOT .. ns.Count("players", run.rosterCount))
     fr.dur:SetText(FormatDuration((run.endTime or GetTime()) - run.startTime))
     local width = ns.summaryDetails and SUMMARY_DETAILS_WIDTH or SUMMARY_WIDTH
     fr:SetWidth(width)
@@ -172,9 +172,9 @@ function ns.RenderSummary()
             unusable = unusable + 1
         end
     end
-    fr.count:SetText((count == 1 and "1 item" or (count .. " items")) .. (mineOnly and " (yours)" or "")
-        .. (unusable > 0 and (SUMMARY_DOT .. "|cffff5040" .. unusable .. " ninja|r") or ""))
-    fr.detailsBtn:SetText(ns.summaryDetails and "Board" or "Details")
+    fr.count:SetText(ns.Count("items", count) .. (mineOnly and (" " .. ns.L("yours")) or "")
+        .. (unusable > 0 and (SUMMARY_DOT .. "|cffff5040" .. ns.L("ninja_footer", unusable) .. "|r") or ""))
+    fr.detailsBtn:SetText(ns.summaryDetails and ns.L("board") or ns.L("details"))
 end
 
 -- 1 pixel frame of four textures (flat look; no template needed)
@@ -458,10 +458,10 @@ local function CreateSummaryFrame()
     local function Close()
         fr:Hide()
     end
-    local close = MakeButton(fr, "Close", 80)
+    local close = MakeButton(fr, ns.L("close"), 80)
     close:SetPoint("BOTTOMRIGHT", -(SUMMARY_PAD + 2), 13)
     close:SetScript("OnClick", Close)
-    fr.detailsBtn = MakeButton(fr, "Details", 80)
+    fr.detailsBtn = MakeButton(fr, ns.L("details"), 80)
     fr.detailsBtn:SetPoint("RIGHT", close, "LEFT", -6, 0)
     fr.detailsBtn:SetScript("OnClick", function()
         ns.summaryDetails = not ns.summaryDetails

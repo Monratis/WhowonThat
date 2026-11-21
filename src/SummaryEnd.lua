@@ -152,15 +152,10 @@ local function SummaryOnEncounterEnd(encounterID, success, name)
     end
 end
 
--- UNIT_DIED / PARTY_KILL: a boss creature died. Counts the kill when the fight's own events never came;
--- waits a moment so the fight events (if any) count first, and never counts the same boss twice.
-local function SummaryOnUnitDied(event, arg1, arg2)
-    local run = ns.summaryRun
-    if not run or run.left or run.ended or not (C_Timer and C_Timer.After) then
-        return
-    end
-    local boss = DungeonBook.BossOfCreature(event == "PARTY_KILL" and arg2 or arg1)
-    if not boss then
+-- A boss creature died (UNIT_DIED / PARTY_KILL or the combat death message). Counts the kill when the fight's own
+-- events never came; waits a moment so the fight events (if any) count first, and never counts a boss twice.
+local function CountBossDeathSoon(run, boss)
+    if not (C_Timer and C_Timer.After) then
         return
     end
     C_Timer.After(1, function()
@@ -172,6 +167,29 @@ local function SummaryOnUnitDied(event, arg1, arg2)
         end
         SummaryOnEncounterEnd(nil, 1, boss.name)
     end)
+end
+
+local function SummaryOnUnitDied(event, arg1, arg2)
+    local run = ns.summaryRun
+    if not run or run.left or run.ended then
+        return
+    end
+    local boss = DungeonBook.BossOfCreature(event == "PARTY_KILL" and arg2 or arg1)
+    if boss then
+        CountBossDeathSoon(run, boss)
+    end
+end
+
+-- CHAT_MSG_COMBAT_HOSTILE_DEATH
+local function SummaryOnDeathMessage(text)
+    local run = ns.summaryRun
+    if not run or run.left or run.ended then
+        return
+    end
+    local boss = DungeonBook.BossOfDeathMessage(run, text)
+    if boss then
+        CountBossDeathSoon(run, boss)
+    end
 end
 
 -- LFG_COMPLETION_REWARD, CHALLENGE_MODE_COMPLETED, SCENARIO_COMPLETED
@@ -244,12 +262,12 @@ end
 
 -- /wwt test: opens the window with made-up data (never stored as the "last" run, so /wwt summary stays honest).
 local function SummarySample()
-    local me = "You"
+    local me = ns.L("sample_you")
     if UnitName then
         local ok, n = pcall(UnitName, "player")
         if ok and UsableName(n) then me = n end
     end
-    local run = NewRun("sample", "Sample Dungeon", "party")
+    local run = NewRun("sample", ns.L("sample_dungeon"), "party")
     run.endTime = run.startTime + 38 * 60 + 12
     local function Player(name, class, isSelf)
         local p = AddRosterName(run, name, class)
@@ -288,6 +306,7 @@ ns.Summary = {
     OnZone = SummaryOnZone,
     OnEncounterEnd = SummaryOnEncounterEnd,
     OnUnitDied = SummaryOnUnitDied,
+    OnDeathMessage = SummaryOnDeathMessage,
     OnCompleted = SummaryOnCompleted,
     OnGroupLeft = SummaryOnGroupLeft,
     OnRosterUpdate = SummaryOnRosterUpdate,

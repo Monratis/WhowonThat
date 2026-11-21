@@ -1,6 +1,7 @@
 -- Who Won That: sample roll, welcome, test and the /wwt command.
 local _, ns = ...
 
+local L = ns.L
 local HAS_HISTORY, Parse, Print, ROLL_STATE = ns.HAS_HISTORY, ns.Parse, ns.Print, ns.ROLL_STATE
 local RenderDrop, SummaryCall, TargetFrame = ns.RenderDrop, ns.SummaryCall, ns.TargetFrame
 
@@ -14,13 +15,13 @@ local function WindowName(i)
 end
 
 local function Help()
-    Print("Settings: Esc > Options > AddOns > Who Won That")
-    Print("/wwt - open the settings panel")
-    Print("/wwt help - show this help")
-    Print("/wwt test - print a sample roll to the chosen chat window")
-    Print("/wwt welcome - show the first-run introduction again")
-    Print("/wwt summary - open the loot summary of the current or last dungeon run")
-    Print("Tip: results go to the chat tab you pick in the settings (e.g. your Party tab). That tab does not need Loot messages enabled. For a quiet chat, turn Loot off in all tabs: right-click the tab > Settings > Loot.")
+    Print(L("help_settings"))
+    Print(L("help_open"))
+    Print(L("help_help"))
+    Print(L("help_test"))
+    Print(L("help_welcome"))
+    Print(L("help_summary"))
+    Print(L("help_tip"))
 end
 
 -- Prints one made-up roll block to the chosen chat window (used by /wwt test and the welcome).
@@ -44,10 +45,9 @@ end
 
 -- First-run welcome: short, shows what the addon does by printing a sample block in the chosen tab.
 local function Welcome()
-    Print("Ready. Loot rolls will show in chat tab |cffffd100" .. WindowName(ns.db.frame)
-        .. "|r. Type |cffffd100/wwt|r to pick another tab (e.g. Party) or change the options. Here is a sample:")
+    Print(L("welcome_ready", "|cffffd100" .. WindowName(ns.db.frame) .. "|r", "|cffffd100/wwt|r"))
     PrintSample()
-    Print("That was only a sample. Other loot messages are hidden in that tab, so a separate tab works best.")
+    Print(L("welcome_sample_note"))
 end
 
 -- /wwt test: builds sample messages from the game's REAL strings (LOOT_ROLL_*), checks that
@@ -109,17 +109,17 @@ local function RunTest()
     if ns.db.format == "summary" then
         if TargetFrame() then
             PrintSample()
-            Print("You should see a block for [Worn Shortsword] in window " .. WindowName(ns.db.frame) .. ".")
+            Print(L("test_see_block", WindowName(ns.db.frame)))
         else
-            Print("Window " .. ns.db.frame .. " does not exist - pick another window in the settings.")
+            Print(L("test_no_window", ns.db.frame))
         end
     else
-        Print("Raw mode: the test only checks message recognition (switch format to summary to see the block).")
+        Print(L("test_raw"))
     end
     -- 3) the loot summary window with sample data (shown whatever the format)
     SummaryCall(ns.Summary.Sample)
-    Print("The sample loot summary window is open: drag it where you like, the position is remembered.")
-    Print(problems == 0 and "TEST finished: everything recognized." or ("TEST finished: problems: " .. problems))
+    Print(L("test_summary_open"))
+    Print(problems == 0 and L("test_ok") or L("test_problems", problems))
 end
 
 -- Opens Esc > Options > AddOns > Who Won That. Returns false if the panel is unavailable.
@@ -136,7 +136,7 @@ local function HandleSlash(input)
     if cmd == "" then
         -- plain /wwt opens the settings panel
         if not OpenPanel() then
-            Print("The settings panel is not available in this game version.")
+            Print(L("no_panel"))
         end
     elseif cmd == "test" then
         RunTest()

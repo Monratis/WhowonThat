@@ -2,12 +2,23 @@
 ## Title: Who Won That
 ## Notes: Who rolled what and who won - one readable block per loot roll in a chat window of your choice (class colors, crown for the winner). Settings: /wwt
 ## Author: Monratis
-## Version: 4.8.1
+## Version: 4.8.2
 ## X-Curse-Project-ID: 1807384
 ## X-Website: https://github.com/Monratis/WhowonThat
 ## SavedVariables: WhoWonThatDB
 src/libs/LibEditMode/namespaced.lua
 src/libs/LibEditMode/embed.xml
+src/Locale.lua
+src/locales/enUS.lua
+src/locales/deDE.lua
+src/locales/frFR.lua
+src/locales/esES.lua
+src/locales/itIT.lua
+src/locales/ptBR.lua
+src/locales/ruRU.lua
+src/locales/koKR.lua
+src/locales/zhCN.lua
+src/locales/zhTW.lua
 src/Core.lua
 src/Render.lua
 src/Announce.lua

@@ -7,10 +7,10 @@ local Emit, PlayerLink, TargetFrame, colorCodes = ns.Emit, ns.PlayerLink, ns.Tar
 local ROLL_STATE = (Enum and Enum.EncounterLootDropRollState)
     or { NeedMainSpec = 0, NeedOffSpec = 1, Transmog = 2, Greed = 3, NoRoll = 4, Pass = 5 }
 local STATE_INFO = {
-    [ROLL_STATE.NeedMainSpec] = { kind = "need", label = "Need", rank = 1 },
-    [ROLL_STATE.NeedOffSpec] = { kind = "need", label = "Need OS", tag = "OS", rank = 2 },
-    [ROLL_STATE.Greed] = { kind = "greed", label = "Greed", rank = 3 },
-    [ROLL_STATE.Pass] = { kind = "pass", label = "Pass", rank = 4 },
+    [ROLL_STATE.NeedMainSpec] = { kind = "need", label = "roll_need", rank = 1 },
+    [ROLL_STATE.NeedOffSpec] = { kind = "need", label = "roll_need_os", tag = "OS", rank = 2 },
+    [ROLL_STATE.Greed] = { kind = "greed", label = "roll_greed", rank = 3 },
+    [ROLL_STATE.Pass] = { kind = "pass", label = "roll_pass", rank = 4 },
     -- NoRoll: the player has not chosen yet - skipped
 }
 -- Need MS first, then Need OS, then Greed; inside a type by roll (like the game decides the winner)
@@ -49,7 +49,7 @@ local function RollLabel(r, st, isWinner, extra)
     -- the winning number is green, everyone else's is white
     local numberColor = isWinner and "|cff33ff33" or "|cffffffff"
     -- the icon says Need/Greed/Pass; only the off-spec Need gets a small "OS" tag
-    return (icon and icon or ("|cff" .. (LABEL_COLOR[st.kind] or "aaaaaa") .. st.label .. "|r"))
+    return (icon and icon or ("|cff" .. (LABEL_COLOR[st.kind] or "aaaaaa") .. ns.L(st.label) .. "|r"))
         .. (st.tag and (" |cff" .. (LABEL_COLOR[st.kind] or "aaaaaa") .. st.tag .. "|r") or "")
         .. (r.roll and (" " .. numberColor .. r.roll .. "|r") or "")
         .. (extra or "")
@@ -343,9 +343,9 @@ local function RenderDropBody(Emit, frame, info, encounterID)
         local itemID = tonumber(item:match("item:(%d+)"))
         if itemID and BossBrowser() then
             -- clickable: "[Boss]" opens the journal / AtlasLoot
-            return "|cff9d9d9dLoot from:|r |cffffd100|H" .. BOSS_LINK .. itemID .. "|h[" .. bossName .. "]|h|r  "
+            return "|cff9d9d9d" .. ns.L("loot_from") .. "|r |cffffd100|H" .. BOSS_LINK .. itemID .. "|h[" .. bossName .. "]|h|r  "
         end
-        return "|cff9d9d9dLoot from:|r |cffffd100" .. bossName .. "|r  "
+        return "|cff9d9d9d" .. ns.L("loot_from") .. "|r |cffffd100" .. bossName .. "|r  "
     end
 
     if info.allPassed then
@@ -389,7 +389,7 @@ local function RenderDropBody(Emit, frame, info, encounterID)
     -- class; for the winner it is shouted, because that one actually got the item
     local function Flag(r, st, isWinner)
         if ns.db.flagUnusable and st.kind == "need" and not CanClassUse(r.playerClass, item) then
-            local word = isWinner and "NINJA LOOT" or "ninja loot"
+            local word = isWinner and ns.L("ninja_winner") or ns.L("ninja_other")
             return "  " .. ICON_NINJA .. (compact and "" or (" |cffff4040" .. word .. "|r"))
         end
         return nil

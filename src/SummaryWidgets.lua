@@ -265,7 +265,7 @@ local function ItemButtonEnter(self)
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
     pcall(GameTooltip.SetHyperlink, GameTooltip, self.link)
     if self.cantUse then
-        GameTooltip:AddLine("Ninja loot: won with Need, but it is not an item for this class.", WARN_R, 0.35, 0.3, true)
+        GameTooltip:AddLine(ns.L("ninja_tip"), WARN_R, 0.35, 0.3, true)
     end
     GameTooltip:Show()
 end

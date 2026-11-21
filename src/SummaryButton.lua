@@ -122,7 +122,7 @@ local function BuildSummaryButton()
     b.text = b:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     b.text:SetPoint("TOPLEFT", icon, "TOPRIGHT", 12, 1)
     b.text:SetJustifyH("LEFT")
-    b.text:SetText("Loot summary")
+    b.text:SetText(ns.L("loot_summary"))
     b.icon = icon
     b.text:SetTextColor(1, 0.86, 0.4)
     b.hint = b:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -171,7 +171,7 @@ local function BuildSummaryButton()
         if self.placing then
             self.placing = false
             self:Hide() -- the position was already saved when the drag ended
-            Print("Pop-up button position saved.")
+            Print(ns.L("btn_pos_saved"))
             return
         end
         if button ~= "LeftButton" or not self.run then
@@ -191,18 +191,18 @@ local function BuildSummaryButton()
             GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
             GameTooltip:AddLine("Who Won That")
             if self.placing then
-                GameTooltip:AddLine("Drag to move, click to save the position.", 1, 1, 1, true)
+                GameTooltip:AddLine(ns.L("btn_tip_placing"), 1, 1, 1, true)
                 GameTooltip:Show()
                 return
             end
-            GameTooltip:AddLine("Click for the full loot summary (or type /wwt summary later).", 1, 1, 1, true)
+            GameTooltip:AddLine(ns.L("btn_tip_click"), 1, 1, 1, true)
             for i, e in ipairs(self.leaders or {}) do
                 if i > 8 then
                     break
                 end
-                GameTooltip:AddDoubleLine(e.colored, e.count .. (e.count == 1 and " item" or " items"), 1, 1, 1, 0.8, 0.8, 0.8)
+                GameTooltip:AddDoubleLine(e.colored, ns.Count("items", e.count), 1, 1, 1, 0.8, 0.8, 0.8)
             end
-            GameTooltip:AddLine("Drag to move. Right-click to dismiss.", 0.7, 0.7, 0.7)
+            GameTooltip:AddLine(ns.L("btn_tip_dismiss"), 0.7, 0.7, 0.7)
             GameTooltip:Show()
         end
     end)
@@ -273,7 +273,7 @@ end
 -- What the button says: the dungeon as title and, under it, what matters to the player: the item they won
 -- (its icon replaces the bag) or, when they won nothing, how much dropped in the run.
 local function SetButtonInfo(b, run, count)
-    b.text:SetText(run.name or "Loot summary")
+    b.text:SetText(run.name or ns.L("loot_summary"))
     local mine = {}
     for _, d in ipairs(run.drops) do
         if d.player.isSelf then
@@ -283,13 +283,12 @@ local function SetButtonInfo(b, run, count)
     local hint
     local icon = #mine > 0 and ItemIcon(mine[#mine].item) or nil
     if #mine > 0 then
-        hint = "You won " .. mine[#mine].item
+        hint = ns.L("you_won", mine[#mine].item)
         if #mine > 1 then
-            hint = hint .. SUMMARY_DOT .. "+" .. (#mine - 1) .. " more"
+            hint = hint .. SUMMARY_DOT .. ns.L("more_n", #mine - 1)
         end
     else
-        hint = string.format("%d item%s%s%d player%s", count, count == 1 and "" or "s", SUMMARY_DOT,
-            run.rosterCount, run.rosterCount == 1 and "" or "s")
+        hint = ns.Count("items", count) .. SUMMARY_DOT .. ns.Count("players", run.rosterCount)
     end
     b.hint:SetText(hint)
     if not (icon and TrySetFile(b.icon, icon)) then
@@ -350,8 +349,8 @@ local function ShowPlacementPreview()
     end
     summaryBtnToken = summaryBtnToken + 1 -- cancels a pending auto-hide
     b.placing, b.run, b.leaders = true, nil, nil
-    b.text:SetText("Loot summary")
-    b.hint:SetText("Drag me where you want. Click when done.")
+    b.text:SetText(ns.L("loot_summary"))
+    b.hint:SetText(ns.L("btn_placing_hint"))
     TrySetFile(b.icon, BAG_ICON)
     b:Show()
     b:Raise()
@@ -363,7 +362,7 @@ end
 -- Settings panel "Move pop-up button".
 local function MoveSummaryButton()
     if ns.summaryBtn and ns.summaryBtn.moverOwned then
-        Print("Move it with the mover screen of your UI addon (ElvUI: /moveui), look for \"Who Won That\".")
+        Print(ns.L("mover_use_ui"))
         return
     end
     if not ShowPlacementPreview() then
@@ -386,11 +385,11 @@ end
 
 local function ResetSummaryButtonPos()
     if ns.summaryBtn and ns.summaryBtn.moverOwned then
-        Print("Reset it in the mover screen of your UI addon (ElvUI: /moveui).")
+        Print(ns.L("mover_reset_ui"))
         return
     end
     ClearSummaryButtonPos()
-    Print("Pop-up button position reset.")
+    Print(ns.L("btn_pos_reset"))
 end
 
 local function InLockdown()
@@ -445,11 +444,11 @@ end
 local function SummaryCommand()
     local run = (ns.summaryRun and #ns.summaryRun.drops > 0) and ns.summaryRun or ns.summaryLast
     if not run then
-        Print("No loot summary yet. It fills with the items won during a dungeon run.")
+        Print(ns.L("no_summary"))
         return
     end
     if InLockdown() then
-        Print("The loot summary opens when combat ends.")
+        Print(ns.L("summary_after_combat"))
     end
     ShowSummaryWhenSafe(run, false)
 end

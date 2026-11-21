@@ -244,8 +244,7 @@ local function OnVersion(v, channel)
     if cmp < 0 then
         if not newerNoticed then
             newerNoticed = true
-            Print("A newer version (" .. table.concat(theirs, ".") .. ") is available, you have "
-                .. table.concat(myVersion, ".") .. ". Update it from CurseForge.")
+            Print(ns.L("newer_version", table.concat(theirs, "."), table.concat(myVersion, ".")))
         end
     elseif cmp > 0 then
         if channel == "GUILD" then

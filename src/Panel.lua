@@ -1,6 +1,7 @@
 -- Who Won That: settings panel in Esc > Options > AddOns.
 local _, ns = ...
 
+local L = ns.L
 local AnnounceActive, DEFAULTS, IsUsableWindow, RunTest = ns.AnnounceActive, ns.DEFAULTS, ns.IsUsableWindow, ns.RunTest
 local SummaryCall, WindowName, WipeCoordination = ns.SummaryCall, ns.WindowName, ns.WipeCoordination
 
@@ -85,11 +86,11 @@ local function RegisterPanel()
     end
 
     -- ===== Where =====
-    Header("Chat")
+    Header(L("hdr_chat"))
 
     -- only windows the player really has (see IsUsableWindow)
     local frameSetting = Settings.RegisterAddOnSetting(category, "WWT_FRAME", "frame", ns.db,
-        Settings.VarType.Number, "Chat window", DEFAULTS.frame)
+        Settings.VarType.Number, L("chat_window"), DEFAULTS.frame)
     local function WindowOptions()
         local container = Settings.CreateControlTextContainer()
         local count = 0
@@ -107,37 +108,33 @@ local function RegisterPanel()
         -- meanwhile (see TargetFrame) and goes back to the saved one when it is there again.
         if not IsUsableWindow(ns.db.frame) and type(ns.db.frame) == "number" then
             local name = WindowName(ns.db.frame)
-            container:Add(ns.db.frame, ns.db.frame .. " - " .. (name ~= "-" and name or "window") .. " (not shown)")
+            container:Add(ns.db.frame, ns.db.frame .. " - " .. (name ~= "-" and name or L("window_word")) .. " " .. L("not_shown"))
         end
         return container:GetData()
     end
     Settings.CreateDropdown(category, frameSetting, WindowOptions,
-        "The chat tab that shows the results (e.g. your party/dungeon tab). It does not need Loot messages enabled. For a quiet chat, turn Loot off in every tab (right-click the tab > Settings > Loot); you then see only these blocks. Other tabs are not touched.")
+        L("chat_window_tip"))
 
-    AddChoice("layout", "Layout",
-        "Compact uses smaller indents and shortens long names, for small chat windows.", {
-            { "auto", "Automatic", "Compact when the chat window is narrow." },
-            { "normal", "Normal", "Full names and wide indents." },
-            { "compact", "Compact", "Smaller indents, long names shortened with .." },
-        })
+    AddChoice("layout", L("layout"), L("layout_tip"), {
+        { "auto", L("auto"), L("layout_auto_tip") },
+        { "normal", L("normal"), L("layout_normal_tip") },
+        { "compact", L("compact"), L("layout_compact_tip") },
+    })
 
-    AddChoice("detail", "Detail",
-        "How much of each roll is printed.", {
-            { "all", "Everyone's rolls", "Winner, every Need/Greed roll, and who passed." },
-            { "rolls", "Winner and Need/Greed", "Winner and the Need/Greed rolls, without the passes." },
-            { "winner", "Winner only", "Just who won each item." },
-        }, nil, ApplyDetail)
+    AddChoice("detail", L("detail"), L("detail_tip"), {
+        { "all", L("detail_all"), L("detail_all_tip") },
+        { "rolls", L("detail_rolls"), L("detail_rolls_tip") },
+        { "winner", L("detail_winner"), L("detail_winner_tip") },
+    }, nil, ApplyDetail)
 
     -- ===== Group chat =====
-    Header("Group chat")
+    Header(L("hdr_group"))
 
-    local announceInit = AddChoice("announce", "Announce results",
-        "Posts the roll results to your group in the same structure as your own block. Not sent while the game restricts addon chat. Waits a random moment and does not post an item another player's addon already posted.", {
-            { "off", "Off", "Nothing is sent to other players." },
-            { "all", "All results", "The block for every item (item, winner, rolls) goes to party/raid chat, with raid markers for the colors. Follows the Detail setting. Other members using this addon coordinate so each result is posted once." },
-        }, nil, UpdateGroupEvents)
-    local hideInit = AddBool("hideWhenAnnounced", "Hide my block when announced",
-        "If the result was announced in group chat (by you or another player), your own detailed block is not printed again.")
+    local announceInit = AddChoice("announce", L("announce"), L("announce_tip"), {
+        { "off", L("off"), L("announce_off_tip") },
+        { "all", L("announce_all"), L("announce_all_tip") },
+    }, nil, UpdateGroupEvents)
+    local hideInit = AddBool("hideWhenAnnounced", L("hide_block"), L("hide_block_tip"))
     if hideInit and hideInit.SetParentInitializer and announceInit then
         -- only meaningful while announcements are on
         hideInit:SetParentInitializer(announceInit, function()
@@ -146,31 +143,38 @@ local function RegisterPanel()
     end
 
     -- ===== Dungeon summary =====
-    Header("Dungeon summary")
+    Header(L("hdr_summary"))
 
-    AddChoice("summary", "Loot summary window",
-        "At the end of a dungeon (and when you leave it) a small window lists who won which item during the run. Never opens during combat. /wwt summary opens it again.", {
-            { "everyone", "Everyone", "Every player of the run with the items they won." },
-            { "mine", "Only my items", "Only the items you won." },
-            { "off", "Off", "The window does not open by itself (/wwt summary still works)." },
-        }, nil, function()
-            SummaryCall(ns.Summary.Refresh)
-        end)
+    AddChoice("summary", L("summary"), L("summary_tip"), {
+        { "everyone", L("summary_everyone"), L("summary_everyone_tip") },
+        { "mine", L("summary_mine"), L("summary_mine_tip") },
+        { "off", L("off"), L("summary_off_tip") },
+    }, nil, function()
+        SummaryCall(ns.Summary.Refresh)
+    end)
+
+    -- ===== Language =====
+    Header(L("hdr_language"))
+
+    local languages = { { "auto", L("lang_auto"), L("language_tip") } }
+    for _, lang in ipairs(ns.LANGUAGES) do
+        languages[#languages + 1] = { lang[1], lang[2], "" }
+    end
+    AddChoice("language", L("language"), L("language_tip"), languages, nil, function()
+        ns.Print(L("lang_reload"))
+    end)
 
     -- ===== Buttons =====
     local panel = _G.SettingsPanel
     if CreateSettingsButtonInitializer and panel and panel.GetLayout then
         local layout = panel:GetLayout(category)
         if layout and layout.AddInitializer then
-            layout:AddInitializer(CreateSettingsButtonInitializer("Pop-up button position",
-                "Move pop-up button", ns.MoveSummaryButton,
-                "Shows the loot summary pop-up button so you can drag it where you want. Click it when done.", true))
-            layout:AddInitializer(CreateSettingsButtonInitializer("Pop-up button reset",
-                "Reset position", ns.ResetSummaryButtonPos,
-                "Puts the loot summary pop-up button back at the top of the screen.", true))
-            layout:AddInitializer(CreateSettingsButtonInitializer("Sample roll",
-                "Print sample roll", RunTest,
-                "Prints a sample roll to the chosen chat tab so you can see how it looks.", true))
+            layout:AddInitializer(CreateSettingsButtonInitializer(L("btn_move_name"),
+                L("btn_move"), ns.MoveSummaryButton, L("btn_move_tip"), true))
+            layout:AddInitializer(CreateSettingsButtonInitializer(L("btn_reset_name"),
+                L("btn_reset"), ns.ResetSummaryButtonPos, L("btn_reset_tip"), true))
+            layout:AddInitializer(CreateSettingsButtonInitializer(L("btn_sample_name"),
+                L("btn_sample"), RunTest, L("btn_sample_tip"), true))
         end
     end
 

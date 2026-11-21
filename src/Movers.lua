@@ -44,7 +44,7 @@ local function RegisterEllesmereUI()
     E:RegisterUnlockElements({
         E.MakeUnlockElement({
             key = "WWT_SummaryButton",
-            label = "Loot summary pop-up",
+            label = ns.L("popup_label"),
             group = "Who Won That",
             order = 900,
             noResize = true,

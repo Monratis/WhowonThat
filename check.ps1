@@ -50,6 +50,10 @@ Push-Location $root
 lua tools/loadtest.lua
 if ($LASTEXITCODE -ne 0) { $problems++ }
 
+Write-Host "3b. Translations (same ids and format specifiers in every language)" -ForegroundColor Cyan
+lua tools/checklocales.lua
+if ($LASTEXITCODE -ne 0) { $problems++ }
+
 Write-Host "4. Simulator scenarios (tools/scenarios, run against a fake WoW client)" -ForegroundColor Cyan
 lua tools/sim/run.lua
 if ($LASTEXITCODE -ne 0) { $problems++ }

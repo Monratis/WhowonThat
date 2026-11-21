@@ -1,5 +1,10 @@
 # Changelog
 
+## 4.8.2
+
+- Language: the settings, the loot summary window and pop-up and the messages shown to you now follow the game's language (English, German, French, Spanish, Italian, Portuguese, Russian, Korean, Simplified and Traditional Chinese). You can also pick a language in the settings (Language). Messages sent to the group always stay in English.
+- Loot summary pop-up: more ways to notice that a dungeon ended: the death message of a boss ("X dies.") now counts too, besides the fight events and the boss creature's death. Fixes the pop-up missing after Sunken Temple, where the game reports Shade of Eranikus under a new fight ID.
+
 ## 4.8.1
 
 - Loot summary pop-up: the end of a dungeon is now recognized like Podium does it. A built-in dungeon book knows every boss, so the last boss is found by its fight ID or, when the game reports ID 0 or none (new WoW Forever dungeons), by its name. A dungeon also ends once every required boss is down, and a boss creature's death counts as a kill when the game sends no fight event.
