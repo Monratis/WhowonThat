@@ -1,5 +1,9 @@
 # Changelog
 
+## 4.8.4
+
+- The addon now shows its own icon in the in-game AddOns list.
+
 ## 4.8.3
 
 - Loot summary: with the Auctionator addon and scanned prices, each item's auction value shows in its tooltip and the total value at the bottom of the window. A new option "Show item values" turns it off.

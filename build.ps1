@@ -44,7 +44,8 @@ $filesToInclude = @(
     "WhoWonThat.toc",
     "README.md",
     "LICENSE",
-    "CHANGELOG.md"
+    "CHANGELOG.md",
+    "icon.tga"
 )
 
 foreach ($file in $filesToInclude) {
