@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.8.5
+
+- New entry in the minimap addon menu: click it to open the settings.
+- The addon description in the AddOns list is now translated into the game languages.
+- Auctionator and GearQuest are declared as optional dependencies, so they load before this addon.
+
 ## 4.8.4
 
 - The addon now shows its own icon in the in-game AddOns list.

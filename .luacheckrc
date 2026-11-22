@@ -23,6 +23,7 @@ globals = {
     "NUM_CHAT_WINDOWS",
     "ChatTypeInfo",
     "Settings",
+    "AddonCompartmentFrame",
     "EventRegistry",
     "HideUIPanel",
     "SlashCmdList",

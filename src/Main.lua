@@ -50,6 +50,15 @@ f:SetScript("OnEvent", function(_, event, arg1, arg2, arg3, arg4, arg5)
         f:UnregisterEvent("ADDON_LOADED") -- only ours is needed; stop hearing about every other addon
     elseif event == "PLAYER_LOGIN" then
         f:UnregisterEvent("PLAYER_LOGIN")
+        if AddonCompartmentFrame and AddonCompartmentFrame.RegisterAddon then
+            -- entry in the minimap addon menu: one click opens the settings
+            AddonCompartmentFrame:RegisterAddon({
+                text = "Who Won That",
+                icon = "Interface/AddOns/WhoWonThat/icon.tga",
+                notCheckable = true,
+                func = function() HandleSlash("") end,
+            })
+        end
         ns.RegisterMovers() -- after every addon has loaded, so the UI addons' mover screens exist
         if ns.commReady then
             ns.StartVersionCheck() -- tells the guild which version we run, so an outdated copy can notice

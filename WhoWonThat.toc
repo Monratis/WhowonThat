@@ -1,9 +1,20 @@
 ## Interface: 16001
 ## Title: Who Won That
 ## Notes: Who rolled what and who won - one readable block per loot roll in a chat window of your choice (class colors, crown for the winner). Settings: /wwt
+## Notes-deDE: Wer hat was gewürfelt und wer hat gewonnen - ein lesbarer Block pro Beute-Wurf in einem Chatfenster deiner Wahl (Klassenfarben, Krone für den Gewinner). Einstellungen: /wwt
+## Notes-frFR: Qui a jeté quoi et qui a gagné - un bloc lisible par jet de butin dans la fenêtre de discussion de votre choix (couleurs de classe, couronne pour le gagnant). Options : /wwt
+## Notes-esES: Quién tiró qué y quién ganó: un bloque legible por cada tirada de botín en la ventana de chat que elijas (colores de clase, corona para el ganador). Opciones: /wwt
+## Notes-itIT: Chi ha tirato cosa e chi ha vinto: un blocco leggibile per ogni tiro sul bottino nella finestra di chat che preferisci (colori di classe, corona per il vincitore). Opzioni: /wwt
+## Notes-ptBR: Quem rolou o quê e quem ganhou: um bloco legível por rolagem de saque na janela de chat que você escolher (cores de classe, coroa para o vencedor). Opções: /wwt
+## Notes-ruRU: Кто что бросил и кто выиграл - один читаемый блок на каждый розыгрыш добычи в выбранном окне чата (цвета классов, корона победителю). Настройки: /wwt
+## Notes-koKR: 누가 무엇을 굴렸고 누가 이겼는지 - 선택한 대화창에 전리품 주사위마다 읽기 쉬운 한 블록으로 표시합니다 (직업 색상, 승자 왕관). 설정: /wwt
+## Notes-zhCN: 谁掷了什么、谁赢了 - 在你选择的聊天窗口中，每次拾取掷骰显示为一个易读的区块（职业颜色，赢家皇冠）。设置：/wwt
+## Category: Loot
+## X-License: MIT
+## OptionalDeps: Auctionator, GearQuest
 ## IconTexture: Interface/AddOns/WhoWonThat/icon.tga
 ## Author: Monratis
-## Version: 4.8.4
+## Version: 4.8.5
 ## X-Curse-Project-ID: 1807384
 ## X-Website: https://github.com/Monratis/WhowonThat
 ## SavedVariables: WhoWonThatDB
