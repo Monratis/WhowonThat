@@ -1,5 +1,9 @@
 # Changelog
 
+## 4.8.6
+
+- Fixed the dungeon summary listing some players twice (once with their items, once with none) when the loot history wrote the realm after a space.
+
 ## 4.8.5
 
 - New entry in the minimap addon menu: click it to open the settings.
