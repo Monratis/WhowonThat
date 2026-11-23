@@ -96,6 +96,8 @@ ns.locales.zhTW = {
     min_value_set = "現在會跳過價值低於 %s 的物品。",
     min_value_off = "已關閉跳過低價物品。",
     help_minvalue = "/wwt minvalue <銀幣> - 跳過價值低於此數的物品（需要 Auctionator / TSM / Booty Bay Broker，0 = 關閉）",
+    help_price = "/wwt price <物品連結> - 顯示各價格插件對該物品的報價",
+    price_none = "無價格",
     values_opt = "顯示物品價值",
     values_opt_tip = "在戰利品總結中顯示物品的拍賣場價值（在物品提示和合計中）。價格來自 Auctionator / TSM / Booty Bay Broker 插件，因此需要安裝 Auctionator / TSM / Booty Bay Broker 並掃描過該物品。",
     auction_value = "拍賣價值：%s",

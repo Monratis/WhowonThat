@@ -96,6 +96,8 @@ ns.locales.koKR = {
     min_value_set = "%s 미만 아이템을 이제 건너뜁니다.",
     min_value_off = "저가 아이템 건너뛰기가 꺼졌습니다.",
     help_minvalue = "/wwt minvalue <은화> - 이 가치 미만 아이템 건너뛰기 (Auctionator / TSM / Booty Bay Broker 필요, 0 = 끄기)",
+    help_price = "/wwt price <아이템 링크> - 각 가격 애드온이 아이템에 대해 알려주는 가격 표시",
+    price_none = "가격 없음",
     values_opt = "아이템 가치 표시",
     values_opt_tip = "전리품 요약에 아이템의 경매장 가치를 표시합니다(아이템 툴팁과 합계). 가격은 Auctionator / TSM / Booty Bay Broker 애드온에서 가져오므로 Auctionator / TSM / Booty Bay Broker와 해당 아이템이 포함된 스캔이 필요합니다.",
     auction_value = "경매장 가치: %s",

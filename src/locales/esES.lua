@@ -96,6 +96,8 @@ ns.locales.esES = {
     min_value_set = "Ahora se omiten los objetos que valen menos de %s.",
     min_value_off = "Omitir objetos baratos está desactivado.",
     help_minvalue = "/wwt minvalue <plata> - omite objetos que valgan menos (requiere Auctionator / TSM / Booty Bay Broker, 0 = desactivado)",
+    help_price = "/wwt price <enlace del objeto> - muestra qué dice cada addon de precios sobre un objeto",
+    price_none = "sin precio",
     values_opt = "Mostrar valor de los objetos",
     values_opt_tip = "Muestra el valor en la casa de subastas de los objetos en el resumen del botín (en la descripción emergente del objeto y como total). Los precios vienen del addon Auctionator / TSM / Booty Bay Broker, así que necesitas Auctionator / TSM / Booty Bay Broker y un escaneo que incluya el objeto.",
     auction_value = "Valor en subasta: %s",

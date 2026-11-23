@@ -145,6 +145,19 @@ local function HandleSlash(input)
         Welcome()
     elseif cmd == "summary" then
         SummaryCall(ns.Summary.Command)
+    elseif cmd == "price" then
+        local link = (input or ""):match("(|c[^|]*|Hitem:.-|h%[.-%]|h|r)") or (input or ""):match("(|Hitem:.-|h%[.-%]|h)")
+        if not link then
+            Print(L("help_price"))
+        else
+            local report = ns.PriceReport(link)
+            if #report == 0 then
+                Print(L("min_value_missing"))
+            end
+            for _, r in ipairs(report) do
+                Print(r.name .. ": " .. (r.price and ns.FormatMoney(r.price) or L("price_none")))
+            end
+        end
     elseif cmd == "minvalue" then
         if not ns.SetMinValue((input or ""):match("^%s*%S+%s+(%S+)")) then
             Print(L("help_minvalue"))

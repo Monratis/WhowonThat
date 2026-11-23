@@ -100,6 +100,8 @@ ns.locales.enUS = {
     min_value_set = "Items worth less than %s are now skipped.",
     min_value_off = "Skipping cheap items is now off.",
     help_minvalue = "/wwt minvalue <silver> - skip items worth less than this (needs Auctionator / TSM / Booty Bay Broker, 0 = off)",
+    help_price = "/wwt price <item link> - show what each price addon says about an item",
+    price_none = "no price",
     values_opt = "Show item values",
     values_opt_tip = "Shows the auction house value of the items in the loot summary (in the item tooltip and as a total). The prices come from a price addon (Auctionator, TSM or Booty Bay Broker), so you need one of them and a scan that includes the item.",
     auction_value = "Auction value: %s",

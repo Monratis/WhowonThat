@@ -96,6 +96,8 @@ ns.locales.ruRU = {
     min_value_set = "Предметы дешевле %s теперь пропускаются.",
     min_value_off = "Пропуск дешёвых предметов выключен.",
     help_minvalue = "/wwt minvalue <серебро> - пропускать предметы дешевле (нужен Auctionator / TSM / Booty Bay Broker, 0 = выкл.)",
+    help_price = "/wwt price <ссылка на предмет> - показывает, что говорит о предмете каждый аддон цен",
+    price_none = "нет цены",
     values_opt = "Показывать стоимость предметов",
     values_opt_tip = "Показывает стоимость предметов на аукционе в итогах добычи (во всплывающей подсказке предмета и общей суммой). Цены берутся из аддона Auctionator / TSM / Booty Bay Broker, поэтому нужен Auctionator / TSM / Booty Bay Broker и сканирование, включающее предмет.",
     auction_value = "Цена на аукционе: %s",

@@ -96,6 +96,8 @@ ns.locales.frFR = {
     min_value_set = "Les objets valant moins de %s sont maintenant ignorés.",
     min_value_off = "Ignorer les objets bon marché est désactivé.",
     help_minvalue = "/wwt minvalue <argent> - ignorer les objets valant moins (nécessite Auctionator / TSM / Booty Bay Broker, 0 = désactivé)",
+    help_price = "/wwt price <lien de l'objet> - affiche ce que chaque addon de prix indique pour un objet",
+    price_none = "pas de prix",
     values_opt = "Afficher la valeur des objets",
     values_opt_tip = "Affiche la valeur en hôtel des ventes des objets dans le résumé du butin (dans l'infobulle de l'objet et en total). Les prix viennent de l'addon Auctionator / TSM / Booty Bay Broker : il faut donc Auctionator / TSM / Booty Bay Broker et un scan qui inclut l'objet.",
     auction_value = "Valeur à l'HV : %s",

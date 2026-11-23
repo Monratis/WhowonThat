@@ -96,6 +96,8 @@ ns.locales.ptBR = {
     min_value_set = "Itens que valem menos de %s agora são ignorados.",
     min_value_off = "Ignorar itens baratos está desativado.",
     help_minvalue = "/wwt minvalue <prata> - ignora itens que valem menos (requer Auctionator / TSM / Booty Bay Broker, 0 = desativado)",
+    help_price = "/wwt price <link do item> - mostra o que cada addon de preços diz sobre um item",
+    price_none = "sem preço",
     values_opt = "Mostrar valor dos itens",
     values_opt_tip = "Mostra o valor na casa de leilões dos itens no resumo do saque (na dica do item e como total). Os preços vêm do addon Auctionator / TSM / Booty Bay Broker, então é preciso ter o Auctionator / TSM / Booty Bay Broker e uma varredura que inclua o item.",
     auction_value = "Valor no leilão: %s",

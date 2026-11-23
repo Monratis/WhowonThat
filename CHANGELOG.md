@@ -1,5 +1,10 @@
 # Changelog
 
+## 4.9.1
+
+- Auctionator prices are also looked up by item ID when the link lookup finds nothing (items whose price showed in the tooltip but not in the addon).
+- New `/wwt price <item link>`: shows what each price addon says about an item.
+
 ## 4.9.0
 
 - New option "Skip items worth less than" (default 20 silver, 0 = off): cheap items are left out of your chat and group announcements. Set it with a slider, by typing a value, or with `/wwt minvalue <silver>`. Needs a price addon.

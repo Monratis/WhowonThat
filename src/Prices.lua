@@ -16,16 +16,25 @@ end
 -- (not at load), because the price addons may load after this one.
 local PROVIDERS = {
     { -- Auctionator: the last seen auction house listing
+        name = "Auctionator",
         present = function()
             local auctionator = _G.Auctionator
             local api = type(auctionator) == "table" and type(auctionator.API) == "table" and auctionator.API.v1
             return type(api) == "table" and type(api.GetAuctionPriceByItemLink) == "function" and api or nil
         end,
         price = function(api, link)
-            return api.GetAuctionPriceByItemLink(CALLER_ID, link)
+            local price = api.GetAuctionPriceByItemLink(CALLER_ID, link)
+            if Positive(price) then
+                return price
+            end
+            -- the link lookup can come back empty (e.g. while item data is still loading) although the plain
+            -- item is in the database, so ask by item ID too
+            local id = tonumber(link:match("item:(%d+)"))
+            return id and type(api.GetAuctionPriceByItemID) == "function" and api.GetAuctionPriceByItemID(CALLER_ID, id)
         end,
     },
     { -- TradeSkillMaster: the market value of its auction database
+        name = "TSM",
         present = function()
             local tsm = _G.TSM_API
             return type(tsm) == "table" and type(tsm.ToItemString) == "function"
@@ -37,6 +46,7 @@ local PROVIDERS = {
         end,
     },
     { -- Booty Bay Broker: its value of one item
+        name = "Booty Bay Broker",
         present = function()
             local ace = _G.LibStub and _G.LibStub("AceAddon-3.0", true)
             local broker = ace and ace:GetAddon("BootyBayBroker", true)
@@ -80,6 +90,20 @@ local function ItemPrice(link)
     return nil
 end
 
+-- What every price addon says about one item: { { name = "Auctionator", price = copper or nil }, ... } for the
+-- addons that are loaded. Used by /wwt price to explain why an item was or was not skipped.
+local function PriceReport(link)
+    local report = {}
+    for _, provider in ipairs(PROVIDERS) do
+        local ok, source = pcall(provider.present)
+        if ok and source then
+            local done, price = pcall(provider.price, source, link)
+            report[#report + 1] = { name = provider.name, price = done and Positive(price) or nil }
+        end
+    end
+    return report
+end
+
 -- Copper as gold / silver / copper with the game's coin icons, or plain letters where the game has no such call.
 local function FormatMoney(copper)
     local coins = (C_CurrencyInfo and C_CurrencyInfo.GetCoinTextureString) or GetCoinTextureString
@@ -118,4 +142,4 @@ local function RunValue(run, mineOnly)
 end
 
 -- ===== shared with the other files =====
-ns.FormatMoney, ns.HasPriceSource, ns.ItemPrice, ns.RunValue = FormatMoney, HasPriceSource, ItemPrice, RunValue
+ns.FormatMoney, ns.HasPriceSource, ns.ItemPrice, ns.PriceReport, ns.RunValue = FormatMoney, HasPriceSource, ItemPrice, PriceReport, RunValue

@@ -96,6 +96,8 @@ ns.locales.itIT = {
     min_value_set = "Gli oggetti che valgono meno di %s ora vengono ignorati.",
     min_value_off = "Ignorare gli oggetti economici è disattivato.",
     help_minvalue = "/wwt minvalue <argento> - ignora gli oggetti che valgono meno (richiede Auctionator / TSM / Booty Bay Broker, 0 = disattivato)",
+    help_price = "/wwt price <link dell'oggetto> - mostra cosa dice ogni addon di prezzi su un oggetto",
+    price_none = "nessun prezzo",
     values_opt = "Mostra il valore degli oggetti",
     values_opt_tip = "Mostra il valore alla casa d'aste degli oggetti nel riepilogo del bottino (nel tooltip dell'oggetto e come totale). I prezzi provengono dall'addon Auctionator / TSM / Booty Bay Broker, quindi servono Auctionator / TSM / Booty Bay Broker e una scansione che includa l'oggetto.",
     auction_value = "Valore all'asta: %s",

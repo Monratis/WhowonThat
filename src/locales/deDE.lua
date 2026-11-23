@@ -96,6 +96,8 @@ ns.locales.deDE = {
     min_value_set = "Gegenstände unter %s werden jetzt übersprungen.",
     min_value_off = "Das Überspringen billiger Gegenstände ist jetzt aus.",
     help_minvalue = "/wwt minvalue <Silber> - Gegenstände unter diesem Wert überspringen (braucht Auctionator / TSM / Booty Bay Broker, 0 = aus)",
+    help_price = "/wwt price <Gegenstandslink> - zeigt, was jedes Preis-Addon zu einem Gegenstand sagt",
+    price_none = "kein Preis",
     values_opt = "Gegenstandswerte anzeigen",
     values_opt_tip = "Zeigt den Auktionshauswert der Gegenstände in der Beute-Zusammenfassung (im Gegenstands-Tooltip und als Summe). Die Preise stammen vom Addon Auctionator / TSM / Booty Bay Broker, du brauchst es also samt einem Scan, der den Gegenstand enthält.",
     auction_value = "Auktionshauswert: %s",
