@@ -2,7 +2,7 @@
 local _, ns = ...
 
 local ANNOUNCE_DELAY_FALLBACK_MAX, ANNOUNCE_DELAY_FALLBACK_MIN, ANNOUNCE_DELAY_WINNER_MAX, ANNOUNCE_DELAY_WINNER_MIN = ns.ANNOUNCE_DELAY_FALLBACK_MAX, ns.ANNOUNCE_DELAY_FALLBACK_MIN, ns.ANNOUNCE_DELAY_WINNER_MAX, ns.ANNOUNCE_DELAY_WINNER_MIN
-local DropKey, HAS_HISTORY, MAX_PENDING, ShouldAnnounce = ns.DropKey, ns.HAS_HISTORY, ns.MAX_PENDING, ns.ShouldAnnounce
+local AnnounceActive, DropKey, HAS_HISTORY, MAX_PENDING = ns.AnnounceActive, ns.DropKey, ns.HAS_HISTORY, ns.MAX_PENDING
 local Parse, ProcessDrop, ROLL_STATE, STALE_SECONDS = ns.Parse, ns.ProcessDrop, ns.ROLL_STATE, ns.STALE_SECONDS
 local SummaryCall, items, pendingDrops, printedDrops = ns.SummaryCall, ns.items, ns.pendingDrops, ns.printedDrops
 
@@ -33,8 +33,11 @@ local function ScheduleDrop(info, encounterID, lootListKey)
         return
     end
     SummaryCall(ns.Summary.RecordWin, info, encounterID, lootListKey) -- remembered for the dungeon summary window
+    if ns.IsCheapItem(info.itemHyperlink) then
+        return -- no chat block and no announcement; the summary window still lists it
+    end
     local doneAt = GetTime()
-    if ShouldAnnounce(info) and C_Timer and C_Timer.After then
+    if AnnounceActive() and C_Timer and C_Timer.After then
         local state
         local key = DropKey(encounterID, lootListKey)
         if key and not pendingDrops[key] and ns.pendingCount < MAX_PENDING then

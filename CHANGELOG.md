@@ -1,5 +1,9 @@
 # Changelog
 
+## 4.8.8
+
+- With Auctionator installed, items worth less than 20 silver are now hidden from your chat even when announcing is off (they still appear in the dungeon summary window).
+
 ## 4.8.7
 
 - Cheap, spammy drops are no longer shown: Black Diamond, Aquamarine and other low-value gems are ignored.

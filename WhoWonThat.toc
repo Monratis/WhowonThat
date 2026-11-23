@@ -14,7 +14,7 @@
 ## OptionalDeps: Auctionator, GearQuest
 ## IconTexture: Interface/AddOns/WhoWonThat/icon.tga
 ## Author: Monratis
-## Version: 4.8.7
+## Version: 4.8.8
 ## X-Curse-Project-ID: 1807384
 ## X-Website: https://github.com/Monratis/WhowonThat
 ## SavedVariables: WhoWonThatDB
