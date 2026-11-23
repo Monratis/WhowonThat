@@ -37,6 +37,23 @@ return {
         t.has(World.chatText(me, 3), "Brakk]  WON")
     end },
 
+    { "Auctionator: an item worth under 20 silver is not announced, but still shown locally", function(w, t)
+        local me, brakk = group(w, { true, true, true })
+        brakk.env.Auctionator = { API = { v1 = { GetAuctionPriceByItemLink = function() return 1999 end } } }
+        lootBlock(w, "Brakk")
+        w:advance(20)
+        t.eq(itemLines(brakk), 0, "cheap item stays out of the group chat")
+        t.has(World.chatText(brakk, 3), "Worn Shortsword")
+    end },
+
+    { "Auctionator: an item worth 20 silver or more is announced", function(w, t)
+        local _, brakk = group(w, { true, true, true })
+        brakk.env.Auctionator = { API = { v1 = { GetAuctionPriceByItemLink = function() return 2000 end } } }
+        lootBlock(w, "Brakk")
+        w:advance(20)
+        t.eq(itemLines(brakk), 1)
+    end },
+
     { "only the winner's addon announces when everyone has it on", function(w, t)
         local me, brakk, seluna = group(w, { true, true, true })
         lootBlock(w, "Brakk")

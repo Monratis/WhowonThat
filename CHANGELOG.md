@@ -1,5 +1,10 @@
 # Changelog
 
+## 4.8.7
+
+- Cheap, spammy drops are no longer shown: Black Diamond, Aquamarine and other low-value gems are ignored.
+- With Auctionator installed, items worth less than 20 silver are no longer announced to the group (they still show in your own chat and the summary).
+
 ## 4.8.6
 
 - Fixed the dungeon summary listing some players twice (once with their items, once with none) when the loot history wrote the realm after a space.

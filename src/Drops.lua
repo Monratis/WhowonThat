@@ -2,16 +2,39 @@
 local _, ns = ...
 
 local ANNOUNCE_DELAY_FALLBACK_MAX, ANNOUNCE_DELAY_FALLBACK_MIN, ANNOUNCE_DELAY_WINNER_MAX, ANNOUNCE_DELAY_WINNER_MIN = ns.ANNOUNCE_DELAY_FALLBACK_MAX, ns.ANNOUNCE_DELAY_FALLBACK_MIN, ns.ANNOUNCE_DELAY_WINNER_MAX, ns.ANNOUNCE_DELAY_WINNER_MIN
-local AnnounceActive, DropKey, HAS_HISTORY, MAX_PENDING = ns.AnnounceActive, ns.DropKey, ns.HAS_HISTORY, ns.MAX_PENDING
+local DropKey, HAS_HISTORY, MAX_PENDING, ShouldAnnounce = ns.DropKey, ns.HAS_HISTORY, ns.MAX_PENDING, ns.ShouldAnnounce
 local Parse, ProcessDrop, ROLL_STATE, STALE_SECONDS = ns.Parse, ns.ProcessDrop, ns.ROLL_STATE, ns.STALE_SECONDS
 local SummaryCall, items, pendingDrops, printedDrops = ns.SummaryCall, ns.items, ns.pendingDrops, ns.printedDrops
+
+-- Items that drop so often they would only spam the chat (matched by item ID, or by name as a fallback).
+local IGNORED_ITEM_IDS = { [11754] = true, [7909] = true } -- Black Diamond, Aquamarine
+local IGNORED_ITEM_NAMES = {
+    ["Black Diamond"] = true, ["Aquamarine"] = true, ["Star Ruby"] = true, ["Citrine"] = true,
+    ["Jade"] = true, ["Lesser Moonstone"] = true, ["Moss Agate"] = true, ["Shadowgem"] = true,
+    ["Malachite"] = true, ["Tigerseye"] = true,
+}
+
+local function IsIgnoredItem(link)
+    if type(link) ~= "string" or (issecretvalue and issecretvalue(link)) then
+        return false
+    end
+    local id = tonumber(link:match("item:(%d+)"))
+    if id and IGNORED_ITEM_IDS[id] then
+        return true
+    end
+    local name = link:match("%[(.-)%]")
+    return name ~= nil and IGNORED_ITEM_NAMES[name] == true
+end
 
 -- Every finished roll goes through here (loot history and the chat fallback alike).
 -- lootListKey is only known for loot history drops; it makes the drop claimable between addons.
 local function ScheduleDrop(info, encounterID, lootListKey)
+    if IsIgnoredItem(info.itemHyperlink) then
+        return
+    end
     SummaryCall(ns.Summary.RecordWin, info, encounterID, lootListKey) -- remembered for the dungeon summary window
     local doneAt = GetTime()
-    if AnnounceActive() and C_Timer and C_Timer.After then
+    if ShouldAnnounce(info) and C_Timer and C_Timer.After then
         local state
         local key = DropKey(encounterID, lootListKey)
         if key and not pendingDrops[key] and ns.pendingCount < MAX_PENDING then

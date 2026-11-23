@@ -626,6 +626,18 @@ local function Announce(info, encounterID, key)
     return true
 end
 
+-- Items worth less than this (copper) on the user's Auctionator scan are not worth a group line.
+local CHEAP_ITEM_COPPER = 2000 -- 20 silver
+
+-- Announce only when announcing is on and the item is not known to be cheap (no Auctionator / no price = announce).
+local function ShouldAnnounce(info)
+    if not AnnounceActive() then
+        return false
+    end
+    local price = ns.ItemPrice and ns.ItemPrice(info.itemHyperlink)
+    return not (price and price < CHEAP_ITEM_COPPER)
+end
+
 local function InAnyGroup()
     if not IsInGroup then
         return false
@@ -648,7 +660,7 @@ local function ProcessDrop(info, encounterID, doneAt, final, state)
         return -- settled already (a claim arrived while we waited)
     end
     local key = state and state.key
-    if AnnounceActive() then
+    if ShouldAnnounce(info) then
         -- a claim is checked first, so it does not use up a seen chat line meant for another copy of the item
         if Claimed(key, info) or AlreadyAnnounced(info) then
             FinishPending(state)
@@ -676,7 +688,7 @@ end
 
 -- ===== shared with the other files =====
 ns.ANNOUNCE_DELAY_FALLBACK_MAX, ns.ANNOUNCE_DELAY_FALLBACK_MIN, ns.ANNOUNCE_DELAY_WINNER_MAX, ns.ANNOUNCE_DELAY_WINNER_MIN = ANNOUNCE_DELAY_FALLBACK_MAX, ANNOUNCE_DELAY_FALLBACK_MIN, ANNOUNCE_DELAY_WINNER_MAX, ANNOUNCE_DELAY_WINNER_MIN
-ns.AnnounceActive, ns.DropKey, ns.InAnyGroup, ns.IsSelfSender = AnnounceActive, DropKey, InAnyGroup, IsSelfSender
+ns.AnnounceActive, ns.DropKey, ns.InAnyGroup, ns.IsSelfSender, ns.ShouldAnnounce = AnnounceActive, DropKey, InAnyGroup, IsSelfSender, ShouldAnnounce
 ns.ItemIDOf, ns.MAX_PENDING, ns.OnAddonMessage, ns.OnGroupChat = ItemIDOf, MAX_PENDING, OnAddonMessage, OnGroupChat
 ns.OnGroupRosterUpdate, ns.ProcessDrop, ns.RegisterComm, ns.SendVersionSoon = OnGroupRosterUpdate, ProcessDrop, RegisterComm, SendVersionSoon
 ns.StartVersionCheck = StartVersionCheck
