@@ -88,8 +88,16 @@ ns.locales.zhTW = {
     no_summary = "還沒有戰利品總結。它會隨著副本中贏得的物品而填入。",
     summary_after_combat = "戰鬥結束後會開啟戰利品總結。",
 
+    min_value = "跳過價值低於以下數值的物品",
+    min_value_tip = "使用 Auctionator / TSM / Booty Bay Broker 時，拍賣場價值低於此銀幣數的物品不會顯示聊天區塊，也不會通報給隊伍（仍會顯示在副本總結中）。0 表示關閉。",
+    min_value_missing = "未安裝 Auctionator / TSM / Booty Bay Broker，因此此選項不起作用。",
+    min_value_prompt = "銀幣，0 = 關閉（最多 %d）：",
+    min_value_btn = "輸入數值...",
+    min_value_set = "現在會跳過價值低於 %s 的物品。",
+    min_value_off = "已關閉跳過低價物品。",
+    help_minvalue = "/wwt minvalue <銀幣> - 跳過價值低於此數的物品（需要 Auctionator / TSM / Booty Bay Broker，0 = 關閉）",
     values_opt = "顯示物品價值",
-    values_opt_tip = "在戰利品總結中顯示物品的拍賣場價值（在物品提示和合計中）。價格來自 Auctionator 插件，因此需要安裝 Auctionator 並掃描過該物品。",
+    values_opt_tip = "在戰利品總結中顯示物品的拍賣場價值（在物品提示和合計中）。價格來自 Auctionator / TSM / Booty Bay Broker 插件，因此需要安裝 Auctionator / TSM / Booty Bay Broker 並掃描過該物品。",
     auction_value = "拍賣價值：%s",
     total_value = "總價值：%s",
 

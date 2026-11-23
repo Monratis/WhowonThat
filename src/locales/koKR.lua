@@ -88,8 +88,16 @@ ns.locales.koKR = {
     no_summary = "아직 전리품 요약이 없습니다. 던전을 진행하며 획득한 아이템으로 채워집니다.",
     summary_after_combat = "전투가 끝나면 전리품 요약이 열립니다.",
 
+    min_value = "다음 가치 미만 아이템 건너뛰기",
+    min_value_tip = "Auctionator / TSM / Booty Bay Broker 사용 시 경매장 가치가 이 은화 수 미만인 아이템은 대화창 블록이 표시되지 않고 파티에 알리지 않습니다(던전 요약에는 계속 표시됩니다). 0이면 끕니다.",
+    min_value_missing = "Auctionator / TSM / Booty Bay Broker가 설치되어 있지 않아 이 옵션은 아무 효과가 없습니다.",
+    min_value_prompt = "은화, 0 = 끄기 (최대 %d):",
+    min_value_btn = "값 입력...",
+    min_value_set = "%s 미만 아이템을 이제 건너뜁니다.",
+    min_value_off = "저가 아이템 건너뛰기가 꺼졌습니다.",
+    help_minvalue = "/wwt minvalue <은화> - 이 가치 미만 아이템 건너뛰기 (Auctionator / TSM / Booty Bay Broker 필요, 0 = 끄기)",
     values_opt = "아이템 가치 표시",
-    values_opt_tip = "전리품 요약에 아이템의 경매장 가치를 표시합니다(아이템 툴팁과 합계). 가격은 Auctionator 애드온에서 가져오므로 Auctionator와 해당 아이템이 포함된 스캔이 필요합니다.",
+    values_opt_tip = "전리품 요약에 아이템의 경매장 가치를 표시합니다(아이템 툴팁과 합계). 가격은 Auctionator / TSM / Booty Bay Broker 애드온에서 가져오므로 Auctionator / TSM / Booty Bay Broker와 해당 아이템이 포함된 스캔이 필요합니다.",
     auction_value = "경매장 가치: %s",
     total_value = "총 가치: %s",
 

@@ -54,6 +54,31 @@ return {
         t.lacks(World.chatText(me, 3), "Worn Shortsword")
     end },
 
+    { "the minimum value option sets the limit, 0 turns it off", function(w, t)
+        local me = group(w, { false, false, false })
+        me.env.Auctionator = { API = { v1 = { GetAuctionPriceByItemLink = function() return 5000 end } } }
+        me.env.WhoWonThatDB.minValueSilver = 80 -- 5000 copper = 50 silver: below the limit
+        lootBlock(w, "Brakk")
+        w:advance(20)
+        t.lacks(World.chatText(me, 3), "Worn Shortsword")
+        me.env.WhoWonThatDB.minValueSilver = 0
+        w:drop(100, item(26, "Worn Dagger")):roll("Brakk", "need", 74):finish("Brakk")
+        w:advance(20)
+        t.has(World.chatText(me, 3), "Worn Dagger")
+    end },
+
+    { "/wwt minvalue sets the limit, clamps it and rejects text", function(w, t)
+        local me = group(w, { false, false, false })
+        me.slash("/wwt minvalue 35")
+        t.eq(me.env.WhoWonThatDB.minValueSilver, 35)
+        me.slash("/wwt minvalue 99999")
+        t.eq(me.env.WhoWonThatDB.minValueSilver, 200)
+        me.slash("/wwt minvalue 0")
+        t.eq(me.env.WhoWonThatDB.minValueSilver, 0)
+        me.slash("/wwt minvalue abc")
+        t.eq(me.env.WhoWonThatDB.minValueSilver, 0)
+    end },
+
     { "Auctionator: an item worth 20 silver or more is announced", function(w, t)
         local _, brakk = group(w, { true, true, true })
         brakk.env.Auctionator = { API = { v1 = { GetAuctionPriceByItemLink = function() return 2000 end } } }

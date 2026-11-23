@@ -88,8 +88,16 @@ ns.locales.frFR = {
     no_summary = "Pas encore de résumé du butin. Il se remplit avec les objets gagnés pendant un donjon.",
     summary_after_combat = "Le résumé du butin s'ouvrira à la fin du combat.",
 
+    min_value = "Ignorer les objets valant moins de",
+    min_value_tip = "Avec Auctionator / TSM / Booty Bay Broker : les objets dont la valeur à l'hôtel des ventes est inférieure à ce nombre de pièces d'argent n'ont pas de bloc dans le chat et ne sont pas annoncés au groupe (ils restent dans le résumé du donjon). 0 désactive cette option.",
+    min_value_missing = "Auctionator / TSM / Booty Bay Broker n'est pas installé : cette option est sans effet.",
+    min_value_prompt = "Argent, 0 = désactivé (jusqu'à %d) :",
+    min_value_btn = "Saisir une valeur...",
+    min_value_set = "Les objets valant moins de %s sont maintenant ignorés.",
+    min_value_off = "Ignorer les objets bon marché est désactivé.",
+    help_minvalue = "/wwt minvalue <argent> - ignorer les objets valant moins (nécessite Auctionator / TSM / Booty Bay Broker, 0 = désactivé)",
     values_opt = "Afficher la valeur des objets",
-    values_opt_tip = "Affiche la valeur en hôtel des ventes des objets dans le résumé du butin (dans l'infobulle de l'objet et en total). Les prix viennent de l'addon Auctionator : il faut donc Auctionator et un scan qui inclut l'objet.",
+    values_opt_tip = "Affiche la valeur en hôtel des ventes des objets dans le résumé du butin (dans l'infobulle de l'objet et en total). Les prix viennent de l'addon Auctionator / TSM / Booty Bay Broker : il faut donc Auctionator / TSM / Booty Bay Broker et un scan qui inclut l'objet.",
     auction_value = "Valeur à l'HV : %s",
     total_value = "Valeur totale : %s",
 

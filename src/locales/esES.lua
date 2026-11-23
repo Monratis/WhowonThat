@@ -88,8 +88,16 @@ ns.locales.esES = {
     no_summary = "Aún no hay resumen del botín. Se llena con los objetos ganados durante una mazmorra.",
     summary_after_combat = "El resumen del botín se abre cuando termina el combate.",
 
+    min_value = "Omitir objetos que valgan menos de",
+    min_value_tip = "Con Auctionator / TSM / Booty Bay Broker: los objetos cuyo valor en la casa de subastas sea inferior a esta cantidad de plata no muestran bloque en el chat ni se anuncian al grupo (siguen apareciendo en el resumen de la mazmorra). 0 lo desactiva.",
+    min_value_missing = "Auctionator / TSM / Booty Bay Broker no está instalado, así que esta opción no hace nada.",
+    min_value_prompt = "Plata, 0 = desactivado (hasta %d):",
+    min_value_btn = "Escribir un valor...",
+    min_value_set = "Ahora se omiten los objetos que valen menos de %s.",
+    min_value_off = "Omitir objetos baratos está desactivado.",
+    help_minvalue = "/wwt minvalue <plata> - omite objetos que valgan menos (requiere Auctionator / TSM / Booty Bay Broker, 0 = desactivado)",
     values_opt = "Mostrar valor de los objetos",
-    values_opt_tip = "Muestra el valor en la casa de subastas de los objetos en el resumen del botín (en la descripción emergente del objeto y como total). Los precios vienen del addon Auctionator, así que necesitas Auctionator y un escaneo que incluya el objeto.",
+    values_opt_tip = "Muestra el valor en la casa de subastas de los objetos en el resumen del botín (en la descripción emergente del objeto y como total). Los precios vienen del addon Auctionator / TSM / Booty Bay Broker, así que necesitas Auctionator / TSM / Booty Bay Broker y un escaneo que incluya el objeto.",
     auction_value = "Valor en subasta: %s",
     total_value = "Valor total: %s",
 

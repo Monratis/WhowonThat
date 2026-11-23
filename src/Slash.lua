@@ -21,6 +21,7 @@ local function Help()
     Print(L("help_test"))
     Print(L("help_welcome"))
     Print(L("help_summary"))
+    Print(L("help_minvalue"))
     Print(L("help_tip"))
 end
 
@@ -144,6 +145,10 @@ local function HandleSlash(input)
         Welcome()
     elseif cmd == "summary" then
         SummaryCall(ns.Summary.Command)
+    elseif cmd == "minvalue" then
+        if not ns.SetMinValue((input or ""):match("^%s*%S+%s+(%S+)")) then
+            Print(L("help_minvalue"))
+        end
     else
         Help()
     end

@@ -11,10 +11,10 @@
 ## Notes-zhCN: 谁掷了什么、谁赢了 - 在你选择的聊天窗口中，每次拾取掷骰显示为一个易读的区块（职业颜色，赢家皇冠）。设置：/wwt
 ## Category: Loot
 ## X-License: MIT
-## OptionalDeps: Auctionator, GearQuest
+## OptionalDeps: Auctionator, TradeSkillMaster, BootyBayBroker, GearQuest
 ## IconTexture: Interface/AddOns/WhoWonThat/icon.tga
 ## Author: Monratis
-## Version: 4.8.8
+## Version: 4.9.0
 ## X-Curse-Project-ID: 1807384
 ## X-Website: https://github.com/Monratis/WhowonThat
 ## SavedVariables: WhoWonThatDB

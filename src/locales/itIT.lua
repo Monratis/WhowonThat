@@ -88,8 +88,16 @@ ns.locales.itIT = {
     no_summary = "Ancora nessun riepilogo del bottino. Si riempie con gli oggetti vinti durante una spedizione.",
     summary_after_combat = "Il riepilogo del bottino si apre quando finisce il combattimento.",
 
+    min_value = "Ignora gli oggetti che valgono meno di",
+    min_value_tip = "Con Auctionator / TSM / Booty Bay Broker: gli oggetti con valore alla casa d'aste inferiore a questo numero di monete d'argento non hanno blocco in chat e non vengono annunciati al gruppo (restano nel riepilogo del dungeon). 0 disattiva l'opzione.",
+    min_value_missing = "Auctionator / TSM / Booty Bay Broker non è installato, quindi questa opzione non ha effetto.",
+    min_value_prompt = "Argento, 0 = disattivato (fino a %d):",
+    min_value_btn = "Digita un valore...",
+    min_value_set = "Gli oggetti che valgono meno di %s ora vengono ignorati.",
+    min_value_off = "Ignorare gli oggetti economici è disattivato.",
+    help_minvalue = "/wwt minvalue <argento> - ignora gli oggetti che valgono meno (richiede Auctionator / TSM / Booty Bay Broker, 0 = disattivato)",
     values_opt = "Mostra il valore degli oggetti",
-    values_opt_tip = "Mostra il valore alla casa d'aste degli oggetti nel riepilogo del bottino (nel tooltip dell'oggetto e come totale). I prezzi provengono dall'addon Auctionator, quindi servono Auctionator e una scansione che includa l'oggetto.",
+    values_opt_tip = "Mostra il valore alla casa d'aste degli oggetti nel riepilogo del bottino (nel tooltip dell'oggetto e come totale). I prezzi provengono dall'addon Auctionator / TSM / Booty Bay Broker, quindi servono Auctionator / TSM / Booty Bay Broker e una scansione che includa l'oggetto.",
     auction_value = "Valore all'asta: %s",
     total_value = "Valore totale: %s",
 

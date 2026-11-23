@@ -91,9 +91,17 @@ ns.locales.enUS = {
     no_summary = "No loot summary yet. It fills with the items won during a dungeon run.",
     summary_after_combat = "The loot summary opens when combat ends.",
 
-    -- item values (Auctionator)
+    -- item values (Auctionator, TSM, Booty Bay Broker)
+    min_value = "Skip items worth less than",
+    min_value_tip = "Requires a price addon (Auctionator, TSM or Booty Bay Broker). Items whose auction house value is below this many silver get no chat block and are not announced to the group (they still appear in the dungeon summary). 0 turns this off.",
+    min_value_missing = "No price addon (Auctionator, TSM or Booty Bay Broker) is installed, so this option does nothing.",
+    min_value_prompt = "Silver, 0 = off (up to %d):",
+    min_value_btn = "Type a value...",
+    min_value_set = "Items worth less than %s are now skipped.",
+    min_value_off = "Skipping cheap items is now off.",
+    help_minvalue = "/wwt minvalue <silver> - skip items worth less than this (needs Auctionator / TSM / Booty Bay Broker, 0 = off)",
     values_opt = "Show item values",
-    values_opt_tip = "Shows the auction house value of the items in the loot summary (in the item tooltip and as a total). The prices come from the Auctionator addon, so it needs Auctionator and a scan that includes the item.",
+    values_opt_tip = "Shows the auction house value of the items in the loot summary (in the item tooltip and as a total). The prices come from a price addon (Auctionator, TSM or Booty Bay Broker), so you need one of them and a scan that includes the item.",
     auction_value = "Auction value: %s",
     total_value = "Total value: %s",
 

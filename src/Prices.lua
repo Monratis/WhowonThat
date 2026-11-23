@@ -1,22 +1,81 @@
--- Who Won That: item values for the loot summary. The prices come from the Auctionator addon's database, so a value
--- is only shown when Auctionator is installed and has scanned the item. Nothing is shown (and nothing breaks) otherwise.
+-- Who Won That: item values for the loot summary. The prices come from a price addon (Auctionator, TradeSkillMaster
+-- or Booty Bay Broker), so a value is only shown when one is installed and knows the item. Nothing is shown (and
+-- nothing breaks) otherwise.
 local _, ns = ...
 
 local CALLER_ID = "WhoWonThat" -- Auctionator wants every caller of its API to name itself
 
--- Auction house price of an item link in copper, or nil (option off, no Auctionator, item never scanned).
+local function Positive(value)
+    if issecretvalue and issecretvalue(value) then
+        return nil
+    end
+    return type(value) == "number" and value > 0 and value < math.huge and value or nil
+end
+
+-- Price sources, tried in this order; the first one that knows the item wins. Each one is looked up when asked
+-- (not at load), because the price addons may load after this one.
+local PROVIDERS = {
+    { -- Auctionator: the last seen auction house listing
+        present = function()
+            local auctionator = _G.Auctionator
+            local api = type(auctionator) == "table" and type(auctionator.API) == "table" and auctionator.API.v1
+            return type(api) == "table" and type(api.GetAuctionPriceByItemLink) == "function" and api or nil
+        end,
+        price = function(api, link)
+            return api.GetAuctionPriceByItemLink(CALLER_ID, link)
+        end,
+    },
+    { -- TradeSkillMaster: the market value of its auction database
+        present = function()
+            local tsm = _G.TSM_API
+            return type(tsm) == "table" and type(tsm.ToItemString) == "function"
+                and type(tsm.GetCustomPriceValue) == "function" and tsm or nil
+        end,
+        price = function(tsm, link)
+            local token = tsm.ToItemString(link)
+            return token and tsm.GetCustomPriceValue("DBMarket", token)
+        end,
+    },
+    { -- Booty Bay Broker: its value of one item
+        present = function()
+            local ace = _G.LibStub and _G.LibStub("AceAddon-3.0", true)
+            local broker = ace and ace:GetAddon("BootyBayBroker", true)
+            return broker and type(broker.ItemUnitValue) == "function" and broker or nil
+        end,
+        price = function(broker, link)
+            local getInfo = (C_Item and C_Item.GetItemInfoInstant) or GetItemInfoInstant
+            local itemID = getInfo and getInfo(link)
+            return itemID and broker:ItemUnitValue(itemID)
+        end,
+    },
+}
+
+-- True when at least one supported price addon is loaded.
+local function HasPriceSource()
+    for _, provider in ipairs(PROVIDERS) do
+        local ok, source = pcall(provider.present)
+        if ok and source then
+            return true
+        end
+    end
+    return false
+end
+
+-- Price of an item link in copper from the first price addon that has one, or nil (option off, no price addon,
+-- item never scanned).
 local function ItemPrice(link)
     if type(link) ~= "string" or (ns.db and ns.db.showValues == false) then
         return nil
     end
-    local auctionator = _G.Auctionator
-    local api = type(auctionator) == "table" and type(auctionator.API) == "table" and auctionator.API.v1
-    if type(api) ~= "table" or type(api.GetAuctionPriceByItemLink) ~= "function" then
-        return nil
-    end
-    local ok, price = pcall(api.GetAuctionPriceByItemLink, CALLER_ID, link)
-    if ok and type(price) == "number" and price > 0 then
-        return price
+    for _, provider in ipairs(PROVIDERS) do
+        local ok, source = pcall(provider.present)
+        if ok and source then
+            local done, price = pcall(provider.price, source, link)
+            price = done and Positive(price)
+            if price then
+                return price
+            end
+        end
     end
     return nil
 end
@@ -59,4 +118,4 @@ local function RunValue(run, mineOnly)
 end
 
 -- ===== shared with the other files =====
-ns.ItemPrice, ns.FormatMoney, ns.RunValue = ItemPrice, FormatMoney, RunValue
+ns.FormatMoney, ns.HasPriceSource, ns.ItemPrice, ns.RunValue = FormatMoney, HasPriceSource, ItemPrice, RunValue

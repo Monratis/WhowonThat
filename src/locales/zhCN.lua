@@ -88,8 +88,16 @@ ns.locales.zhCN = {
     no_summary = "还没有战利品总结。它会随着副本中赢得的物品而填充。",
     summary_after_combat = "战斗结束后会打开战利品总结。",
 
+    min_value = "跳过价值低于以下数值的物品",
+    min_value_tip = "使用 Auctionator / TSM / Booty Bay Broker 时，拍卖行价值低于此银币数的物品不会显示聊天块，也不会通报给队伍（仍会显示在副本总结中）。0 表示关闭。",
+    min_value_missing = "未安装 Auctionator / TSM / Booty Bay Broker，因此此选项不起作用。",
+    min_value_prompt = "银币，0 = 关闭（最多 %d）：",
+    min_value_btn = "输入数值...",
+    min_value_set = "现在会跳过价值低于 %s 的物品。",
+    min_value_off = "已关闭跳过低价物品。",
+    help_minvalue = "/wwt minvalue <银币> - 跳过价值低于此数的物品（需要 Auctionator / TSM / Booty Bay Broker，0 = 关闭）",
     values_opt = "显示物品价值",
-    values_opt_tip = "在战利品总结中显示物品的拍卖行价值（在物品提示和合计中）。价格来自 Auctionator 插件，因此需要安装 Auctionator 并扫描过该物品。",
+    values_opt_tip = "在战利品总结中显示物品的拍卖行价值（在物品提示和合计中）。价格来自 Auctionator / TSM / Booty Bay Broker 插件，因此需要安装 Auctionator / TSM / Booty Bay Broker 并扫描过该物品。",
     auction_value = "拍卖价值：%s",
     total_value = "总价值：%s",
 

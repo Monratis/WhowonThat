@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.9.0
+
+- New option "Skip items worth less than" (default 20 silver, 0 = off): cheap items are left out of your chat and group announcements. Set it with a slider, by typing a value, or with `/wwt minvalue <silver>`. Needs a price addon.
+- Item values now also come from TradeSkillMaster and Booty Bay Broker, not only Auctionator.
+- Spammy low-value gems (Black Diamond, Aquamarine and similar) are ignored.
+
 ## 4.8.8
 
 - With Auctionator installed, items worth less than 20 silver are now hidden from your chat even when announcing is off (they still appear in the dungeon summary window).

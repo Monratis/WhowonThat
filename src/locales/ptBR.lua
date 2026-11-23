@@ -88,8 +88,16 @@ ns.locales.ptBR = {
     no_summary = "Ainda não há resumo do saque. Ele se preenche com os itens ganhos durante uma masmorra.",
     summary_after_combat = "O resumo do saque abre quando o combate termina.",
 
+    min_value = "Ignorar itens que valem menos de",
+    min_value_tip = "Com o Auctionator / TSM / Booty Bay Broker: itens cujo valor na casa de leilões seja menor que esta quantidade de prata não têm bloco no chat e não são anunciados ao grupo (continuam no resumo da masmorra). 0 desativa.",
+    min_value_missing = "O Auctionator / TSM / Booty Bay Broker não está instalado, então esta opção não faz nada.",
+    min_value_prompt = "Prata, 0 = desativado (até %d):",
+    min_value_btn = "Digitar um valor...",
+    min_value_set = "Itens que valem menos de %s agora são ignorados.",
+    min_value_off = "Ignorar itens baratos está desativado.",
+    help_minvalue = "/wwt minvalue <prata> - ignora itens que valem menos (requer Auctionator / TSM / Booty Bay Broker, 0 = desativado)",
     values_opt = "Mostrar valor dos itens",
-    values_opt_tip = "Mostra o valor na casa de leilões dos itens no resumo do saque (na dica do item e como total). Os preços vêm do addon Auctionator, então é preciso ter o Auctionator e uma varredura que inclua o item.",
+    values_opt_tip = "Mostra o valor na casa de leilões dos itens no resumo do saque (na dica do item e como total). Os preços vêm do addon Auctionator / TSM / Booty Bay Broker, então é preciso ter o Auctionator / TSM / Booty Bay Broker e uma varredura que inclua o item.",
     auction_value = "Valor no leilão: %s",
     total_value = "Valor total: %s",
 

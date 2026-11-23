@@ -30,8 +30,8 @@ Made for **WoW Forever** (Midnight engine, Interface `16001`). No other addon ne
 - **A separate tab works best:** other loot messages (like "You receive loot") are hidden in the chosen tab.
 - Want a quiet chat? Turn *Loot* off in every tab (right-click the tab > Settings > Loot). The addon still shows its blocks.
 - **Dungeon loot summary:** when a dungeon ends, a small pop-up shows the top winners; click it to open a window that lists who got which items (hover for the tooltip, Shift-click to link, "Details" for the rolls). Choose Everyone / Only my items / Off in the options; `/wwt summary` reopens it.
-- **Item values (optional):** with the Auctionator addon and scanned prices, the loot summary shows each item's auction value in its tooltip and the total at the bottom.
-- **Works with other addons when installed:** Auctionator (prices), GearQuest Forever (item stats for the ninja loot check), ForeverDungeonJournal / AtlasLoot (boss links). Nothing is needed for the addon to work.
+- **Item values (optional):** with a price addon (Auctionator, TradeSkillMaster or Booty Bay Broker), the loot summary shows each item's auction value in its tooltip and the total at the bottom. Items worth less than a limit you set (default 20 silver) are left out of chat and group announcements.
+- **Works with other addons when installed:** Auctionator, TradeSkillMaster, Booty Bay Broker (prices), GearQuest Forever (item stats for the ninja loot check), ForeverDungeonJournal / AtlasLoot (boss links). Nothing is needed for the addon to work.
 - Commands: `/wwt` settings, `/wwt test` sample roll and sample summary window, `/wwt summary` last dungeon summary, `/wwt help`.
 
 ## Development

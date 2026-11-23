@@ -88,8 +88,16 @@ ns.locales.deDE = {
     no_summary = "Noch keine Beute-Zusammenfassung. Sie füllt sich mit den Gegenständen, die du in einem Dungeon gewinnst.",
     summary_after_combat = "Die Beute-Zusammenfassung öffnet sich, wenn der Kampf endet.",
 
+    min_value = "Gegenstände überspringen unter",
+    min_value_tip = "Mit Auctionator / TSM / Booty Bay Broker: Gegenstände, deren Auktionshauswert unter dieser Silbermenge liegt, erhalten keinen Chatblock und werden nicht an die Gruppe gemeldet (sie erscheinen weiterhin in der Dungeon-Zusammenfassung). 0 schaltet dies aus.",
+    min_value_missing = "Auctionator / TSM / Booty Bay Broker ist nicht installiert, daher hat diese Option keine Wirkung.",
+    min_value_prompt = "Silber, 0 = aus (bis %d):",
+    min_value_btn = "Wert eingeben...",
+    min_value_set = "Gegenstände unter %s werden jetzt übersprungen.",
+    min_value_off = "Das Überspringen billiger Gegenstände ist jetzt aus.",
+    help_minvalue = "/wwt minvalue <Silber> - Gegenstände unter diesem Wert überspringen (braucht Auctionator / TSM / Booty Bay Broker, 0 = aus)",
     values_opt = "Gegenstandswerte anzeigen",
-    values_opt_tip = "Zeigt den Auktionshauswert der Gegenstände in der Beute-Zusammenfassung (im Gegenstands-Tooltip und als Summe). Die Preise stammen vom Addon Auctionator, du brauchst es also samt einem Scan, der den Gegenstand enthält.",
+    values_opt_tip = "Zeigt den Auktionshauswert der Gegenstände in der Beute-Zusammenfassung (im Gegenstands-Tooltip und als Summe). Die Preise stammen vom Addon Auctionator / TSM / Booty Bay Broker, du brauchst es also samt einem Scan, der den Gegenstand enthält.",
     auction_value = "Auktionshauswert: %s",
     total_value = "Gesamtwert: %s",
 

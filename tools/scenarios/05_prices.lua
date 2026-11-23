@@ -5,13 +5,16 @@ local item = World.item
 local DUNGEON = { name = "Deadmines", id = 36, type = "party", mapID = 10, journalID = 63,
     encounters = { { id = 1, name = "Glubtok" }, { id = 2, name = "Cookie" } } }
 
-local function run(w, savedVariables, auctionator)
+local function run(w, savedVariables, auctionator, setup)
     local me = w:addClient({ name = "Monra", class = "MAGE", savedVariables = savedVariables or {} })
     local b = w:addClient({ name = "Brakk", class = "WARRIOR" })
     w:formGroup({ me, b }, "instance")
     w:enterInstance({ me, b }, DUNGEON)
     if auctionator then
         me.env.Auctionator = { API = { v1 = { GetAuctionPriceByItemLink = auctionator } } }
+    end
+    if setup then
+        setup(me.env)
     end
     w:encounter(2, "Cookie")
     w:drop(2, item(12640, "Lionheart Helm")):roll("Monra", "need", 90):finish("Monra")
@@ -61,5 +64,21 @@ return {
     { "values follow the language of the addon", function(w, t)
         local me = run(w, { language = "deDE" }, price)
         t.has(World.screen(me), "Gesamtwert")
+    end },
+
+    { "TSM only: the market value is used", function(w, t)
+        local me = run(w, nil, nil, function(env)
+            env.TSM_API = { ToItemString = function(link) return link end,
+                GetCustomPriceValue = function(source, link) return link:find("12640", 1, true) and 20000 or nil end }
+        end)
+        t.has(World.screen(me), "2g")
+    end },
+
+    { "Booty Bay Broker only: its unit value is used", function(w, t)
+        local me = run(w, nil, nil, function(env)
+            local broker = { ItemUnitValue = function(_, id) return id == 12640 and 30000 or nil end }
+            env.LibStub = function() return { GetAddon = function() return broker end } end
+        end)
+        t.has(World.screen(me), "3g")
     end },
 }

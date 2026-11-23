@@ -626,13 +626,15 @@ local function Announce(info, encounterID, key)
     return true
 end
 
--- Items worth less than this (copper) on the user's Auctionator scan are not worth a chat block or a group line.
-local CHEAP_ITEM_COPPER = 2000 -- 20 silver
-
--- No Auctionator or no price = not cheap (we never hide what we cannot value).
+-- With a price addon, items worth less than the user's limit (silver, 0 = off) get no chat block and no group line.
+-- No price addon or no price = not cheap (we never hide what we cannot value).
 local function IsCheapItem(link)
+    local limit = ns.db and tonumber(ns.db.minValueSilver) or 0
+    if limit <= 0 then
+        return false
+    end
     local price = ns.ItemPrice and ns.ItemPrice(link)
-    return price ~= nil and price < CHEAP_ITEM_COPPER
+    return price ~= nil and price < limit * 100
 end
 
 local function InAnyGroup()

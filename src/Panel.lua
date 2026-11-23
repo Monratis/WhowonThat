@@ -42,6 +42,59 @@ end
 
 -- Panel in Esc > Options > AddOns > Who Won That (Settings API from Blizzard_Settings_Shared).
 -- Settings are saved straight into WhoWonThatDB; the /wwt commands keep working.
+-- Sets the "skip items below" limit (silver, 0 = off) from the popup or /wwt minvalue. Goes through the panel's
+-- setting when it exists, so the slider follows.
+local MIN_VALUE_MAX = 200
+local function SetMinValue(text)
+    local n = tonumber(text)
+    if not n then
+        return false
+    end
+    n = math.max(0, math.min(MIN_VALUE_MAX, math.floor(n + 0.5)))
+    if ns.minValueSetting then
+        ns.minValueSetting:SetValue(n)
+    elseif ns.db then
+        ns.db.minValueSilver = n
+    end
+    ns.Print(n > 0 and L("min_value_set", ns.FormatMoney(n * 100)) or L("min_value_off"))
+    return true
+end
+
+local function OpenMinValuePopup()
+    if not (StaticPopupDialogs and StaticPopup_Show) then
+        return
+    end
+    local function EditBoxOf(dialog)
+        return dialog.editBox or (dialog.GetEditBox and dialog:GetEditBox())
+    end
+    StaticPopupDialogs["WWT_MIN_VALUE"] = {
+        text = L("min_value_prompt", MIN_VALUE_MAX),
+        button1 = ACCEPT, button2 = CANCEL,
+        hasEditBox = 1, maxLetters = 4, timeout = 0, whileDead = 1, hideOnEscape = 1,
+        OnShow = function(self)
+            local box = EditBoxOf(self)
+            if box then
+                box:SetText(tostring(ns.db and ns.db.minValueSilver or 0))
+                box:HighlightText()
+            end
+        end,
+        OnAccept = function(self)
+            local box = EditBoxOf(self)
+            if box then
+                SetMinValue(box:GetText())
+            end
+        end,
+        EditBoxOnEnterPressed = function(box)
+            SetMinValue(box:GetText())
+            box:GetParent():Hide()
+        end,
+        EditBoxOnEscapePressed = function(box)
+            box:GetParent():Hide()
+        end,
+    }
+    StaticPopup_Show("WWT_MIN_VALUE")
+end
+
 local function RegisterPanel()
     if not (Settings and Settings.RegisterVerticalLayoutCategory and Settings.RegisterAddOnSetting
         and Settings.CreateCheckbox and Settings.CreateDropdown and Settings.CreateControlTextContainer) then
@@ -155,6 +208,25 @@ local function RegisterPanel()
 
     AddBool("showValues", L("values_opt"), L("values_opt_tip"))
 
+    -- items below this value (silver) are hidden from chat and not announced; 0 turns it off
+    if Settings.CreateSlider and Settings.CreateSliderOptions then
+        local minSetting = Settings.RegisterAddOnSetting(category, "WWT_MINVALUESILVER", "minValueSilver", ns.db,
+            Settings.VarType.Number, L("min_value"), DEFAULTS.minValueSilver)
+        local options = Settings.CreateSliderOptions(0, 200, 5)
+        local mixin = _G.MinimalSliderWithSteppersMixin
+        if mixin and mixin.Label and options.SetLabelFormatter then
+            options:SetLabelFormatter(mixin.Label.Right, function(v)
+                return v <= 0 and L("off") or ns.FormatMoney(v * 100)
+            end)
+        end
+        local tip = L("min_value_tip")
+        if not ns.HasPriceSource() then
+            tip = tip .. "\n\n|cffff5555" .. L("min_value_missing") .. "|r"
+        end
+        ns.minValueSetting = minSetting
+        Settings.CreateSlider(category, minSetting, options, tip)
+    end
+
     -- ===== Language =====
     Header(L("hdr_language"))
 
@@ -175,6 +247,8 @@ local function RegisterPanel()
                 L("btn_move"), ns.MoveSummaryButton, L("btn_move_tip"), true))
             layout:AddInitializer(CreateSettingsButtonInitializer(L("btn_reset_name"),
                 L("btn_reset"), ns.ResetSummaryButtonPos, L("btn_reset_tip"), true))
+            layout:AddInitializer(CreateSettingsButtonInitializer(L("min_value"),
+                L("min_value_btn"), OpenMinValuePopup, L("min_value_tip"), true))
             layout:AddInitializer(CreateSettingsButtonInitializer(L("btn_sample_name"),
                 L("btn_sample"), RunTest, L("btn_sample_tip"), true))
         end
@@ -185,4 +259,4 @@ end
 
 -- ===== shared with the other files =====
 ns.eventFrame = f
-ns.ApplyDetail, ns.RegisterPanel, ns.UpdateGroupEvents = ApplyDetail, RegisterPanel, UpdateGroupEvents
+ns.ApplyDetail, ns.RegisterPanel, ns.SetMinValue, ns.UpdateGroupEvents = ApplyDetail, RegisterPanel, SetMinValue, UpdateGroupEvents
