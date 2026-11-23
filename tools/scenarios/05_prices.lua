@@ -68,17 +68,51 @@ return {
 
     { "TSM only: the market value is used", function(w, t)
         local me = run(w, nil, nil, function(env)
-            env.TSM_API = { ToItemString = function(link) return link end,
-                GetCustomPriceValue = function(source, link) return link:find("12640", 1, true) and 20000 or nil end }
+            env.TSM_API = { GetCustomPriceValue = function(source, item) return item == "i:12640" and 20000 or nil end }
         end)
         t.has(World.screen(me), "2g")
     end },
 
-    { "Booty Bay Broker only: its unit value is used", function(w, t)
+    { "Booty Bay Broker only: its price call is used, by item ID when the link has no figure", function(w, t)
         local me = run(w, nil, nil, function(env)
-            local broker = { ItemUnitValue = function(_, id) return id == 12640 and 30000 or nil end }
-            env.LibStub = function() return { GetAddon = function() return broker end } end
+            env.BootyBayBrokerAPI = { VERSION = 1, GetItemPrice = function(item)
+                if item == 12640 then return 30000, "scan", 60 end
+                return nil
+            end }
         end)
         t.has(World.screen(me), "3g")
+    end },
+
+    { "Auctionator: a price stored under the item-level key is found like in its tooltip", function(w, t)
+        local me = run(w, nil, nil, function(env)
+            env.Auctionator = {
+                API = { v1 = { GetAuctionPriceByItemLink = function() return nil end } },
+                Utilities = { DBKeyFromLink = function(link, cb) cb(link:find("12640", 1, true) and { "g:12640:30", "12640" } or { "25" }) end },
+                Database = { GetFirstPrice = function(_, keys) return keys[1] == "g:12640:30" and 50000 or nil end },
+            }
+        end)
+        t.has(World.screen(me), "5g")
+    end },
+
+    { "Naowh Forever only: its auction price is used", function(w, t)
+        local me = run(w, nil, nil, function(env)
+            env.NaowhForever = { AuctionPrice = function(id) return id == 12640 and 40000 or nil end }
+        end)
+        t.has(World.screen(me), "4g")
+    end },
+
+    { "Forever Ledger only: its price is used", function(w, t)
+        local me = run(w, nil, nil, function(env)
+            env.ForeverLedgerAPI = { version = 1, GetPrice = function(id) return id == 12640 and 60000 or nil end }
+        end)
+        t.has(World.screen(me), "6g")
+    end },
+
+    { "AuctionDB only: its last price is used", function(w, t)
+        local me = run(w, nil, nil, function(env)
+            env.AuctionDB = { ViewHouse = function() return "house" end,
+                LastPrice = function(_, id) return id == 12640 and { 1, 70000 } or nil end }
+        end)
+        t.has(World.screen(me), "7g")
     end },
 }

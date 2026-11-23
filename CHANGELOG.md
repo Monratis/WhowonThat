@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.9.2
+
+- Auctionator prices are now found the same way its tooltip finds them (including gear and bags stored under an item-level key).
+- Booty Bay Broker prices now use its official price call; TradeSkillMaster is asked the way its API expects.
+- Also supported as price sources: AuctionDB, Naowh Forever and Forever Ledger.
+
 ## 4.9.1
 
 - Auctionator prices are also looked up by item ID when the link lookup finds nothing (items whose price showed in the tooltip but not in the addon).

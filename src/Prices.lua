@@ -1,5 +1,5 @@
--- Who Won That: item values for the loot summary. The prices come from a price addon (Auctionator, TradeSkillMaster
--- or Booty Bay Broker), so a value is only shown when one is installed and knows the item. Nothing is shown (and
+-- Who Won That: item values for the loot summary. The prices come from a price addon (Auctionator, TradeSkillMaster,
+-- AuctionDB, Naowh, Forever Ledger or Booty Bay Broker), so a value is only shown when one is installed and knows the item. Nothing is shown (and
 -- nothing breaks) otherwise.
 local _, ns = ...
 
@@ -14,6 +14,15 @@ end
 
 -- Price sources, tried in this order; the first one that knows the item wins. Each one is looked up when asked
 -- (not at load), because the price addons may load after this one.
+-- TSM price source expression (checked against TSM's own source list): the latest AuctionDB snapshot value, then
+-- its minimum buyout, then the 14-day market value
+local TSM_PRICE = "first(DBRecent, DBMinBuyout, DBMarket)"
+
+local function ItemIDOf(link)
+    return tonumber(link:match("item:(%d+)"))
+end
+
+local dbKeysByLink, dbKeyCount = {}, 0 -- Auctionator database keys by item link
 local PROVIDERS = {
     { -- Auctionator: the last seen auction house listing
         name = "Auctionator",
@@ -23,6 +32,30 @@ local PROVIDERS = {
             return type(api) == "table" and type(api.GetAuctionPriceByItemLink) == "function" and api or nil
         end,
         price = function(api, link)
+            -- The way Auctionator's own tooltip does it: its database keys for the item (gear and bags can be stored
+            -- under a key with the item level) and the first one that has a price. Its public API only manages that
+            -- when the item data is already loaded, so the keys are kept from the first lookup that finished.
+            local auctionator = _G.Auctionator
+            local keyFor = type(auctionator.Utilities) == "table" and auctionator.Utilities.DBKeyFromLink
+            local db = auctionator.Database
+            if type(keyFor) == "function" and type(db) == "table" and type(db.GetFirstPrice) == "function" then
+                if not dbKeysByLink[link] then
+                    if dbKeyCount > 300 then
+                        dbKeysByLink, dbKeyCount = {}, 0
+                    end
+                    keyFor(link, function(keys)
+                        if type(keys) == "table" and #keys > 0 then
+                            dbKeysByLink[link] = keys
+                            dbKeyCount = dbKeyCount + 1
+                        end
+                    end)
+                end
+                local keys = dbKeysByLink[link]
+                local found = keys and Positive(db:GetFirstPrice(keys))
+                if found then
+                    return found
+                end
+            end
             local price = api.GetAuctionPriceByItemLink(CALLER_ID, link)
             if Positive(price) then
                 return price
@@ -33,29 +66,73 @@ local PROVIDERS = {
             return id and type(api.GetAuctionPriceByItemID) == "function" and api.GetAuctionPriceByItemID(CALLER_ID, id)
         end,
     },
-    { -- TradeSkillMaster: the market value of its auction database
+    { -- TradeSkillMaster: the latest AuctionDB snapshot (the way SkillUp Forever reads it), asked by item ID
         name = "TSM",
         present = function()
             local tsm = _G.TSM_API
-            return type(tsm) == "table" and type(tsm.ToItemString) == "function"
-                and type(tsm.GetCustomPriceValue) == "function" and tsm or nil
+            return type(tsm) == "table" and type(tsm.GetCustomPriceValue) == "function" and tsm or nil
         end,
         price = function(tsm, link)
-            local token = tsm.ToItemString(link)
-            return token and tsm.GetCustomPriceValue("DBMarket", token)
+            -- TSM wants its own item string (it keeps gear versions apart); the plain "i:<id>" is the fallback.
+            -- It raises an error for a string it cannot use, which the caller's pcall absorbs.
+            local id = ItemIDOf(link)
+            local itemString = type(tsm.ToItemString) == "function" and tsm.ToItemString(link) or nil
+            local value = itemString and tsm.GetCustomPriceValue(TSM_PRICE, itemString)
+            if not Positive(value) and id then
+                value = tsm.GetCustomPriceValue(TSM_PRICE, "i:" .. id)
+            end
+            return value
         end,
     },
-    { -- Booty Bay Broker: its value of one item
+    { -- AuctionDB: the last price it recorded on the current auction house
+        name = "AuctionDB",
+        present = function()
+            local db = _G.AuctionDB
+            return type(db) == "table" and type(db.LastPrice) == "function" and type(db.ViewHouse) == "function" and db or nil
+        end,
+        price = function(db, link)
+            local id = ItemIDOf(link)
+            local point = id and db:LastPrice(id, db:ViewHouse())
+            return type(point) == "table" and point[2] or nil
+        end,
+    },
+    { -- Naowh Forever
+        name = "Naowh",
+        present = function()
+            local naowh = _G.NaowhForever
+            return type(naowh) == "table" and type(naowh.AuctionPrice) == "function" and naowh or nil
+        end,
+        price = function(naowh, link)
+            local id = ItemIDOf(link)
+            return id and naowh.AuctionPrice(id)
+        end,
+    },
+    { -- Forever Ledger
+        name = "Forever Ledger",
+        present = function()
+            local ledger = _G.ForeverLedgerAPI
+            return type(ledger) == "table" and ledger.version == 1 and type(ledger.GetPrice) == "function" and ledger or nil
+        end,
+        price = function(ledger, link)
+            local id = ItemIDOf(link)
+            return id and (ledger.GetPrice(id))
+        end,
+    },
+    { -- Booty Bay Broker: its documented price call (BootyBayBrokerAPI, API.md) - copper first, nil when it holds none
         name = "Booty Bay Broker",
         present = function()
-            local ace = _G.LibStub and _G.LibStub("AceAddon-3.0", true)
-            local broker = ace and ace:GetAddon("BootyBayBroker", true)
-            return broker and type(broker.ItemUnitValue) == "function" and broker or nil
+            local api = _G.BootyBayBrokerAPI
+            return type(api) == "table" and type(api.GetItemPrice) == "function" and api or nil
         end,
-        price = function(broker, link)
-            local getInfo = (C_Item and C_Item.GetItemInfoInstant) or GetItemInfoInstant
-            local itemID = getInfo and getInfo(link)
-            return itemID and broker:ItemUnitValue(itemID)
+        price = function(api, link)
+            -- a link naming one version of a piece of gear answers only that version's own figure,
+            -- so ask by item ID when the link has none
+            local copper = api.GetItemPrice(link)
+            if not Positive(copper) then
+                local id = ItemIDOf(link)
+                copper = id and api.GetItemPrice(id)
+            end
+            return copper
         end,
     },
 }
