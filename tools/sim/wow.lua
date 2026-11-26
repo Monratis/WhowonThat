@@ -176,7 +176,7 @@ function Wow.new(opts)
     }
     for ev in ([[ADDON_LOADED PLAYER_LOGIN PLAYER_ENTERING_WORLD ZONE_CHANGED_NEW_AREA ENCOUNTER_END BOSS_KILL CHAT_MSG_COMBAT_HOSTILE_DEATH
         LFG_COMPLETION_REWARD CHALLENGE_MODE_COMPLETED SCENARIO_COMPLETED GROUP_ROSTER_UPDATE
-        LOOT_HISTORY_UPDATE_DROP CHAT_MSG_LOOT CHAT_MSG_ADDON]]):gmatch("%S+") do
+        LOOT_HISTORY_UPDATE_DROP CHAT_MSG_LOOT CHAT_MSG_ADDON START_LOOT_ROLL]]):gmatch("%S+") do
         client.knownEvents[ev] = true
     end
     for _, ev in ipairs(opts.unknownEvents or {}) do client.knownEvents[ev] = nil end

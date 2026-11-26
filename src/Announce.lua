@@ -2,21 +2,19 @@
 local ADDON, ns = ...
 
 local ADDON, CanClassUse, EncounterName, Print = ns.ADDON, ns.CanClassUse, ns.EncounterName, ns.Print
-local RenderDrop, RollOrder, STATE_INFO, ShortName = ns.RenderDrop, ns.RollOrder, ns.STATE_INFO, ns.ShortName
+local RollOrder, STATE_INFO, ShortName = ns.RollOrder, ns.STATE_INFO, ns.ShortName
 local UsableName = ns.UsableName
 
 -- ===== Optional group announcement =====
--- The group gets the same structure as the block in your own chat (item, winner, everyone else's rolls, who
--- passed), as plain text and respecting the Detail setting. Anyone using this addon with announcements on
+-- The group gets one short line per item (item, winner, everyone else's rolls, who passed), as plain text and
+-- respecting the Detail setting. Anyone using this addon with announcements on
 -- could send the same block, so:
 --  * the winner's own addon announces first, after a short random moment; everyone else's addon waits longer
 --    and only steps in if the winner's block did not show up (winner without the addon, or with it turned off),
 --  * a drop nobody won (all passed) has no winner, so everyone uses the longer random wait,
 --  * if another player's block for the same item already appeared in group chat, we do not send ours,
 --  * addons that announce also tell each other through a hidden addon message ("claim", see below) the moment
---    they decide to announce a drop, so the others cancel theirs at once and handle their own block right away
---    instead of waiting out the grace period,
---  * a result that was announced is not printed again as our own block (option, on by default).
+--    they decide to announce a drop, so the others cancel theirs at once.
 -- Everything degrades gracefully: without addon messages (API missing, locked down, nobody else runs the addon)
 -- the chat-line detection and the timing fallback below work exactly as before.
 local ANNOUNCE_PREFIX = "<Who Won That> "         -- starts the first announcement of a session: [Item]
@@ -286,7 +284,7 @@ local function PruneAnnouncements()
     end
 end
 
--- Removes one seen chat block of this item from this sender. True if there was one.
+-- Removes one seen announcement line of this item from this sender. True if there was one.
 local function RemoveSeenLine(itemID, sender)
     local list = announcedAt[itemID]
     if not list then
@@ -396,9 +394,6 @@ local function OnClaim(who, key, itemID)
     local st = pendingDrops[key]
     if st and not st.done and ItemIDOf(st.info.itemHyperlink) == itemID then
         FinishPending(st)
-        if not ns.db.hideWhenAnnounced then
-            RenderDrop(st.info, st.encounterID)
-        end
     end
 end
 
@@ -626,7 +621,8 @@ local function Announce(info, encounterID, key)
     return true
 end
 
--- With a price addon, items worth less than the user's limit (silver, 0 = off) get no chat block and no group line.
+-- With a price addon, items worth less than the user's limit (silver, 0 = off) are left out of the roll window and
+-- get no group line.
 -- No price addon or no price = not cheap (we never hide what we cannot value).
 local function IsCheapItem(link)
     local limit = ns.db and tonumber(ns.db.minValueSilver) or 0
@@ -644,45 +640,18 @@ local function InAnyGroup()
     return IsInGroup() or (LE_PARTY_CATEGORY_INSTANCE ~= nil and IsInGroup(LE_PARTY_CATEGORY_INSTANCE)) or false
 end
 
--- A finished roll: announce it (if enabled and nobody did yet) and print our own block (unless the result was
--- announced and the option to hide it is on).
--- When we do not post it ourselves (e.g. the game restricts chat at that moment), another member's addon may still
--- post it - up to ANNOUNCE_DELAY_FALLBACK_MAX seconds after the roll ended (the latest any member's addon
--- announces), plus send queue and latency. Printing our block right away would then show the result twice, so
--- with the hide option on we wait out that window first and print only if nobody announced it. When we announce
--- ourselves, nothing is left to wait for. A claim from another member's addon (OnClaim) ends the wait at once.
--- doneAt = when the roll was seen as finished, final = the check after that wait,
+-- A finished roll: announced to the group when announcing is on and no other member's addon claimed or posted it
+-- yet. The claim is checked first, so it does not use up a seen chat line meant for another copy of the item.
 -- state = our pending entry for a loot history drop (nil for the chat fallback, which has no drop key).
-local ANNOUNCE_GRACE = 3 -- seconds on top of ANNOUNCE_DELAY_FALLBACK_MAX for another member's line to arrive
-local function ProcessDrop(info, encounterID, doneAt, final, state)
+local function ProcessDrop(info, encounterID, state)
     if not ns.db or (state and state.done) then
         return -- settled already (a claim arrived while we waited)
     end
     local key = state and state.key
-    if AnnounceActive() then
-        -- a claim is checked first, so it does not use up a seen chat line meant for another copy of the item
-        if Claimed(key, info) or AlreadyAnnounced(info) then
-            FinishPending(state)
-            if ns.db.hideWhenAnnounced then
-                return
-            end
-        elseif not final then
-            if Announce(info, encounterID, key) then
-                FinishPending(state)
-                if ns.db.hideWhenAnnounced then
-                    return
-                end
-            elseif ns.db.hideWhenAnnounced and doneAt and InAnyGroup() and C_Timer and C_Timer.After then
-                local wait = doneAt + ANNOUNCE_DELAY_FALLBACK_MAX + ANNOUNCE_GRACE - GetTime()
-                C_Timer.After(math.max(wait, 0.5), function()
-                    ProcessDrop(info, encounterID, doneAt, true, state)
-                end)
-                return
-            end
-        end
+    if AnnounceActive() and not (Claimed(key, info) or AlreadyAnnounced(info)) then
+        Announce(info, encounterID, key)
     end
     FinishPending(state)
-    RenderDrop(info, encounterID)
 end
 
 -- ===== shared with the other files =====

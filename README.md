@@ -4,35 +4,30 @@
 
 # Who Won That
 
-Turns the flood of group loot roll lines into **one short summary per item**: who rolled what, and who won.
-
-![Who Won That in the chat window](https://raw.githubusercontent.com/Monratis/WhowonThat/main/images/example.png)
+Turns the flood of group loot roll lines into **a live roll window**: who rolled what, the numbers spinning in, and who won.
 
 Made for **WoW Forever** (Midnight engine, Interface `16001`). No other addon needed.
 
 ## Features
 
-- **One block per item** - winner first, everyone else sorted by roll, passes on one line.
-- **Your chat tab** - results go to the tab you pick; other tabs are not touched.
-- **Class-colored names** (your custom palette if you use one) and a ninja icon on ninja loot: a Need roll on an item that is not for that class (armor it can't wear, wrong main stat), shouted for the winner.
-- **Detail and layout** - everyone's rolls, winner + Need/Greed, or winner only; compact layout on narrow tabs.
+- **Live roll window** - every roll plays out in a small window: Need / Greed / Pass choices, the numbers spinning in like a slot machine (the best one lands last) and the winner with a crown and sparks. Between rolls it lists your group with what everyone won. Opens in dungeons, raids and whenever a roll starts; matches EllesmereUI, ElvUI, TukUI or the Blizzard look. Starts above the chat - drag it anywhere, drag the corner to resize, Ctrl + mouse wheel to scale.
+- **A quiet chat** - the game's roll lines (who picked Need / Greed / Pass, rolled, won) are hidden in every chat tab while the roll window is on; other loot messages stay.
+- **Class-colored names** (your custom palette if you use one) and a ninja icon on ninja loot: a Need roll on an item that is not for that class (armor it can't wear, wrong main stat).
 - **Your language** - settings, windows and messages follow the game's language (English, German, French, Spanish, Italian, Portuguese, Russian, Korean, Chinese) or the language you pick in the settings. Messages to the group are always in English.
-- **Optional group announcement** (off by default) - your wins or all results, to party/raid; skips items another player already posted.
+- **Optional group announcement** (off by default) - all results to party/raid, next to the roll window; everyone's rolls, winner + Need/Greed, or winner only; skips items another player already posted.
 
 ## Quick start
 
 1. Install via CurseForge, or copy the `WhoWonThat` folder to `<WoW Forever>\_forever_\Interface\AddOns\`, then restart the game.
-2. Type `/wwt` (or Esc > Options > AddOns > Who Won That).
-3. Pick a chat tab (your Party tab, or a new small *Loot* tab).
+2. Type `/wwt demo` to see the roll window and drag it where you like.
+3. Type `/wwt` (or Esc > Options > AddOns > Who Won That) for the options.
 
 ## Tips
 
-- **A separate tab works best:** other loot messages (like "You receive loot") are hidden in the chosen tab.
-- Want a quiet chat? Turn *Loot* off in every tab (right-click the tab > Settings > Loot). The addon still shows its blocks.
 - **Dungeon loot summary:** when a dungeon ends, a small pop-up shows the top winners; click it to open a window that lists who got which items (hover for the tooltip, Shift-click to link, "Details" for the rolls). Choose Everyone / Only my items / Off in the options; `/wwt summary` reopens it.
-- **Item values (optional):** with a price addon (Auctionator, TradeSkillMaster or Booty Bay Broker), the loot summary shows each item's auction value in its tooltip and the total at the bottom. Items worth less than a limit you set (default 20 silver) are left out of chat and group announcements.
-- **Works with other addons when installed:** Auctionator, TradeSkillMaster, Booty Bay Broker (prices), GearQuest Forever (item stats for the ninja loot check), ForeverDungeonJournal / AtlasLoot (boss links). Nothing is needed for the addon to work.
-- Commands: `/wwt` settings, `/wwt test` sample roll and sample summary window, `/wwt summary` last dungeon summary, `/wwt help`.
+- **Item values (optional):** with a price addon (Auctionator, TradeSkillMaster or Booty Bay Broker), the loot summary shows each item's auction value in its tooltip and the total at the bottom. Items worth less than a limit you set (default 20 silver) are left out of the roll window and group announcements.
+- **Works with other addons when installed:** Auctionator, TradeSkillMaster, Booty Bay Broker (prices), GearQuest Forever (item stats for the ninja loot check), EllesmereUI / ElvUI / TukUI (the roll window's look). Nothing is needed for the addon to work.
+- Commands: `/wwt` settings, `/wwt window` show / hide the roll window (`/wwt window reset` puts it back above the chat), `/wwt demo` sample roll in the roll window, `/wwt test` checks roll message recognition and shows the sample windows, `/wwt summary` last dungeon summary, `/wwt help`.
 
 ## Development
 

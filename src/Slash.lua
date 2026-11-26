@@ -1,18 +1,9 @@
--- Who Won That: sample roll, welcome, test and the /wwt command.
+-- Who Won That: welcome, test and the /wwt command.
 local _, ns = ...
 
 local L = ns.L
-local HAS_HISTORY, Parse, Print, ROLL_STATE = ns.HAS_HISTORY, ns.Parse, ns.Print, ns.ROLL_STATE
-local RenderDrop, SummaryCall, TargetFrame = ns.RenderDrop, ns.SummaryCall, ns.TargetFrame
-
-local function WindowName(i)
-    local f = _G["ChatFrame" .. i]
-    local name = f and f.name
-    if (not name or name == "") and GetChatWindowInfo then
-        name = GetChatWindowInfo(i)
-    end
-    return (name and name ~= "") and name or "-"
-end
+local HAS_HISTORY, Parse, Print = ns.HAS_HISTORY, ns.Parse, ns.Print
+local SummaryCall = ns.SummaryCall
 
 local function Help()
     Print(L("help_settings"))
@@ -21,43 +12,28 @@ local function Help()
     Print(L("help_test"))
     Print(L("help_welcome"))
     Print(L("help_summary"))
+    Print(L("help_window"))
+    Print(L("help_demo"))
     Print(L("help_minvalue"))
-    Print(L("help_tip"))
 end
 
--- Prints one made-up roll block to the chosen chat window (used by /wwt test and the welcome).
-local function PrintSample()
-    local function roll(name, class, state, value, winner)
-        return { playerName = name, playerGUID = name, playerClass = class, isSelf = false,
-            state = state, roll = value, isWinner = winner or false }
+-- Introduces the roll window once (first run, or the first login after the update that added it).
+local function WindowIntro()
+    ns.db.windowHintSeen = true
+    if ns.db.rollWindow then
+        Print(L("welcome_window", "|cffffd100/wwt|r"))
+        SummaryCall(ns.RollWindow.Demo)
     end
-    local win = roll("Brakk-Testrealm", "WARRIOR", ROLL_STATE.NeedMainSpec, 74, true)
-    RenderDrop({
-        itemHyperlink = "|cffffffff|Hitem:25::::::::::::::|h[Worn Shortsword]|h|r", allPassed = false, winner = win,
-        rollInfos = {
-            win,
-            roll("Seluna-Testrealm", "PRIEST", ROLL_STATE.Greed, 55),
-            roll("Monra-Greytusk", "MAGE", ROLL_STATE.NeedOffSpec, 31),
-            roll("Rax-Testrealm", "ROGUE", ROLL_STATE.Greed, 12),
-            roll("Morv-Testrealm", "HUNTER", ROLL_STATE.Pass),
-        },
-    })
 end
 
--- First-run welcome: short, shows what the addon does by printing a sample block in the chosen tab.
-local function Welcome()
-    Print(L("welcome_ready", "|cffffd100" .. WindowName(ns.db.frame) .. "|r", "|cffffd100/wwt|r"))
-    PrintSample()
-    Print(L("welcome_sample_note"))
-end
+-- First-run welcome: the roll window plays a sample roll.
+local Welcome = WindowIntro
 
--- /wwt test: builds sample messages from the game's REAL strings (LOOT_ROLL_*), checks that
--- the addon recognizes them and (in "summary" mode) renders them through the same code as real rolls.
+-- /wwt test: builds sample messages from the game's REAL strings (LOOT_ROLL_*), checks that the addon recognizes
+-- them (needed to hide the game's roll lines and for the fallback without loot history), then opens the sample
+-- loot summary and plays a sample roll in the roll window.
 local function RunTest()
-    Print(string.format("TEST: window %d (%s), format: %s, loot history (C_LootHistory): %s",
-        ns.db.frame, WindowName(ns.db.frame), ns.db.format, HAS_HISTORY and "YES" or "NO"))
-
-    -- 1) do we recognize the roll chat messages (needed to hide the raw lines in this window)
+    Print(string.format("TEST: loot history (C_LootHistory): %s", HAS_HISTORY and "YES" or "NO"))
     local item = "|cffffffff|Hitem:25::::::::::::::|h[Worn Shortsword]|h|r"
     local function pl(n)
         return "|Hplayer:" .. n .. "-Testrealm:1|h[" .. n .. "]|h"
@@ -106,19 +82,8 @@ local function RunTest()
         end
     end
 
-    -- 2) summary: sample data in the Blizzard loot history format
-    if ns.db.format == "summary" then
-        if TargetFrame() then
-            PrintSample()
-            Print(L("test_see_block", WindowName(ns.db.frame)))
-        else
-            Print(L("test_no_window", ns.db.frame))
-        end
-    else
-        Print(L("test_raw"))
-    end
-    -- 3) the loot summary window with sample data (shown whatever the format)
     SummaryCall(ns.Summary.Sample)
+    SummaryCall(ns.RollWindow.Demo)
     Print(L("test_summary_open"))
     Print(problems == 0 and L("test_ok") or L("test_problems", problems))
 end
@@ -145,6 +110,14 @@ local function HandleSlash(input)
         Welcome()
     elseif cmd == "summary" then
         SummaryCall(ns.Summary.Command)
+    elseif cmd == "window" then
+        if ((input or ""):match("^%s*%S+%s+(%S+)") or ""):lower() == "reset" then
+            SummaryCall(ns.RollWindow.ResetPos)
+        else
+            SummaryCall(ns.RollWindow.Toggle)
+        end
+    elseif cmd == "demo" then
+        SummaryCall(ns.RollWindow.Demo)
     elseif cmd == "price" then
         local link = (input or ""):match("(|c[^|]*|Hitem:.-|h%[.-%]|h|r)") or (input or ""):match("(|Hitem:.-|h%[.-%]|h)")
         if not link then
@@ -168,4 +141,5 @@ local function HandleSlash(input)
 end
 
 -- ===== shared with the other files =====
-ns.HandleSlash, ns.RunTest, ns.Welcome, ns.WindowName = HandleSlash, RunTest, Welcome, WindowName
+ns.HandleSlash, ns.RunTest, ns.Welcome = HandleSlash, RunTest, Welcome
+ns.WindowIntro = WindowIntro

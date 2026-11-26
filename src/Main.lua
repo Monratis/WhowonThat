@@ -3,7 +3,7 @@ local ADDON, ns = ...
 
 local ADDON, ApplyDetail, DEFAULTS, Filter = ns.ADDON, ns.ApplyDetail, ns.DEFAULTS, ns.Filter
 local HAS_HISTORY, HandleSlash, InAnyGroup, MarkExistingDrops = ns.HAS_HISTORY, ns.HandleSlash, ns.InAnyGroup, ns.MarkExistingDrops
-local OnAddonMessage, OnBossLink, OnDropUpdate, OnGroupChat = ns.OnAddonMessage, ns.OnBossLink, ns.OnDropUpdate, ns.OnGroupChat
+local OnAddonMessage, OnDropUpdate, OnGroupChat = ns.OnAddonMessage, ns.OnDropUpdate, ns.OnGroupChat
 local OnGroupRosterUpdate, OnLoot, RegisterComm, RegisterPanel = ns.OnGroupRosterUpdate, ns.OnLoot, ns.RegisterComm, ns.RegisterPanel
 local SendVersionSoon, SummaryCall, UpdateGroupEvents, Welcome = ns.SendVersionSoon, ns.SummaryCall, ns.UpdateGroupEvents, ns.Welcome
 local addFilter = ns.addFilter
@@ -21,7 +21,9 @@ f:SetScript("OnEvent", function(_, event, arg1, arg2, arg3, arg4, arg5)
             end
         end
         -- leftovers of old test versions: no longer used, so they do not stay in the saved file
-        for _, k in ipairs({ "boot", "mainLoaded", "debug", "schema", "transmog", "errors", "strings", "colors" }) do
+        -- (and the settings of the chat block, which the roll window replaced in 4.10)
+        for _, k in ipairs({ "boot", "mainLoaded", "debug", "schema", "transmog", "errors", "strings", "colors",
+            "frame", "format", "hideOthers", "classColors", "header", "hideWhenAnnounced", "layout", "chatBlock" }) do
             ns.db[k] = nil
         end
         -- the "Only my wins" announce mode was removed; saved "mine" becomes "all" (accepted by the author:
@@ -40,11 +42,12 @@ f:SetScript("OnEvent", function(_, event, arg1, arg2, arg3, arg4, arg5)
         if ns.db.summaryBtnPos ~= nil and type(ns.db.summaryBtnPos) ~= "table" then
             ns.db.summaryBtnPos = nil
         end
+        if ns.db.rollWinPos ~= nil and type(ns.db.rollWinPos) ~= "table" then
+            ns.db.rollWinPos = nil
+        end
         ApplyDetail()
         -- no switches in the panel for these: always the intended behavior
-        ns.db.byBoss, ns.db.classColors, ns.db.header = true, true, true
-        ns.db.flagUnusable, ns.db.hideOthers = true, true
-        ns.db.format = "summary"
+        ns.db.byBoss, ns.db.flagUnusable = true, true
         RegisterPanel()
         RegisterComm() -- addon message prefix "WWT" (skipped quietly if the API is missing)
         f:UnregisterEvent("ADDON_LOADED") -- only ours is needed; stop hearing about every other addon
@@ -75,6 +78,12 @@ f:SetScript("OnEvent", function(_, event, arg1, arg2, arg3, arg4, arg5)
                 ns.db.hintSeen = true
                 Welcome()
             end
+        elseif not ns.db.windowHintSeen and C_Timer and C_Timer.After then
+            C_Timer.After(4, function()
+                if not ns.db.windowHintSeen then
+                    ns.WindowIntro()
+                end
+            end)
         end
         if addFilter then
             addFilter("CHAT_MSG_LOOT", Filter)
@@ -95,16 +104,15 @@ f:SetScript("OnEvent", function(_, event, arg1, arg2, arg3, arg4, arg5)
             f:RegisterEvent("CHAT_MSG_ADDON")        -- claims and version messages of other members' addons
             f:RegisterEvent("PLAYER_ENTERING_WORLD") -- version message when already grouped (login, /reload)
         end
-        if hooksecurefunc and SetItemRef then
-            hooksecurefunc("SetItemRef", OnBossLink) -- same way Questie handles its addon links
-        end
         -- dungeon summary window: instance runs and the end of a dungeon. Events this client does not know are
         -- skipped (RegisterEvent raises an error for an unknown event).
         for _, ev in ipairs({ "PLAYER_ENTERING_WORLD", "ZONE_CHANGED_NEW_AREA", "ENCOUNTER_END",
-            "BOSS_KILL", "CHAT_MSG_COMBAT_HOSTILE_DEATH", "LFG_COMPLETION_REWARD", "CHALLENGE_MODE_COMPLETED", "SCENARIO_COMPLETED" }) do
+            "BOSS_KILL", "CHAT_MSG_COMBAT_HOSTILE_DEATH", "LFG_COMPLETION_REWARD", "CHALLENGE_MODE_COMPLETED", "SCENARIO_COMPLETED",
+            "START_LOOT_ROLL" }) do
             pcall(f.RegisterEvent, f, ev)
         end
         SummaryCall(ns.Summary.OnZone)
+        SummaryCall(ns.RollWindow.OnZone)
     elseif event == "CHAT_MSG_PARTY" or event == "CHAT_MSG_PARTY_LEADER" or event == "CHAT_MSG_RAID"
         or event == "CHAT_MSG_RAID_LEADER" or event == "CHAT_MSG_INSTANCE_CHAT"
         or event == "CHAT_MSG_INSTANCE_CHAT_LEADER" then
@@ -116,8 +124,12 @@ f:SetScript("OnEvent", function(_, event, arg1, arg2, arg3, arg4, arg5)
             SendVersionSoon()
         end
         SummaryCall(ns.Summary.OnZone)
+        SummaryCall(ns.RollWindow.OnZone) -- after the summary, which starts the run the board belongs to
     elseif event == "ZONE_CHANGED_NEW_AREA" then
         SummaryCall(ns.Summary.OnZone)
+        SummaryCall(ns.RollWindow.OnZone)
+    elseif event == "START_LOOT_ROLL" then
+        SummaryCall(ns.RollWindow.OnStartRoll, arg1, arg2) -- rollID, rollTime
     elseif event == "ENCOUNTER_END" then
         SummaryCall(ns.Summary.OnEncounterEnd, arg1, arg5, arg2) -- encounterID, name, difficultyID, groupSize, success
     elseif event == "BOSS_KILL" then

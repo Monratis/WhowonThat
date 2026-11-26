@@ -1,15 +1,43 @@
-**Who Won That** turns the flood of group loot roll lines into one short summary per item: who rolled what, and who won.
+**Who Won That** turns the flood of group loot roll lines into a small live roll window: who picked what, the numbers spinning in, and who won.
 
-![Who Won That in the chat window](https://raw.githubusercontent.com/Monratis/WhowonThat/main/images/example.png)
+**New in 4.10:** the roll window. Every loot roll plays out like a slot machine, right above your chat, in the look of your UI. The game's roll spam is hidden in chat; other loot messages stay.
 
-**New in 4.8:** slide-out dungeon loot summary, movable pop-up button, ninja loot flag, announce to party chat that never double-posts.
+## The roll window
 
-## In your chat
+**While an item is rolled for:**
 
-- **One block per item** - winner first, everyone else sorted by roll, passes on one line.
-- **Your chat tab** - results go to the tab you pick; other tabs are not touched.
-- **Class-colored names** (your custom palette if you use one).
-- **Ninja loot flag** - a Need roll on an item the class can't use (armor, weapon type or main stat) is marked in red, and the winner is called out.
+- The item with its type, slot and item level, over a glow in its quality color, and a countdown.
+- Everyone's pick (Need / Greed / Pass) pops in as they choose. Once someone needs, the Greed players drop out at once, just like in the game.
+- The numbers spin in one after another and the best one lands last. The deciding number spins longest while its row pulses.
+- Your place, live: "You lead!" or "You: #2 of 4". Your row flashes red when someone takes the lead from you.
+- The winner gets a crown, a flash and sparks. "Photo finish!" when it was close, and "Missed by 2" when you lost by a hair.
+- Epic and better items get the big finale: a longer spin, a double burst, and they stay on screen longer.
+- Several items at once are shown one after the other.
+
+**Between rolls:**
+
+- Everyone in your group with the items they won and the roll that won them (tooltips, Shift-click to link).
+- Luck for the run: each player's average and best roll, a star for the luckiest and a skull for the unluckiest.
+- With a price addon, the value of what each player won.
+- A ninja loot flag on a Need win of an item the class can't use (armor, weapon type or main stat).
+
+**Your way:**
+
+- It opens in dungeons and raids and whenever a roll starts. Outside instances it fades away after the result.
+- It starts right above your chat. Drag it anywhere, drag its corner to make it wider, Ctrl + mouse wheel to scale it.
+- It can also be placed from Edit Mode, EllesmereUI Unlock Mode and the ElvUI / TukUI / SpartanUI movers.
+- It matches your UI: EllesmereUI (it follows your accent color and font), ElvUI, TukUI or the Blizzard look.
+- Close it and it stays away until the next roll. `/wwt window` brings it back, `/wwt demo` plays a sample roll.
+
+## Announce to party chat
+
+Optional, **off by default**, and it works next to the roll window. It posts all results to party/raid, so the whole group sees the same short line:
+
+`<WWT> [Item] (Boss) - won by Winner:94 // Second:88, Third:74 // Fourth`
+
+- Raid markers stand in for Need / Greed / Pass.
+- The winner of a ninja loot gets a "ninja loot" note.
+- **No spam:** players who have the addon talk to each other behind the scenes, so only one of them announces each item.
 
 ## Dungeon loot summary
 
@@ -20,29 +48,19 @@ When a dungeon ends, a small button slides out with the dungeon name, what you w
 - a *Details* view with item, winner and roll
 - ninja loot highlighted
 
-You can move the button anywhere (options, Edit Mode and popular UI addons). `/wwt summary` reopens the last one. Everyone / Only my items / Off in the options.
-
-## Announce to party chat
-
-Optional, **off by default.** Post your wins or all results to party/raid, so the whole group sees the same short line:
-
-`<WWT> [Item] (Boss) - won by Winner:94 // Second:88, Third:74 // Fourth`
-
-- Raid markers stand in for Need / Greed / Pass.
-- The winner of a ninja loot gets a "ninja loot" note.
-- **No spam:** players who have the addon talk to each other behind the scenes, so only one of them announces each item.
+`/wwt summary` reopens the last one. Everyone / Only my items / Off in the options.
 
 ## Quick start
 
 1. Install the addon and restart the game.
-2. Type `/wwt`.
-3. Pick a chat tab (your Party tab, or a new small *Loot* tab).
+2. Type `/wwt demo` to see the roll window, and drag it where you like.
+3. Type `/wwt` for the options.
 
-## Tips
+## More
 
-- **A separate tab works best:** other loot messages (like "You receive loot") are hidden in the chosen tab.
-- Want a quiet chat? Turn *Loot* off in every tab (right-click the tab > Settings > Loot). The addon still shows its blocks.
-- `/wwt test` prints a sample roll and shows a sample loot summary.
+- Announcements say as much as you like: everyone's rolls, winner + Need/Greed, or the winner only.
+- Item values come from Auctionator, TradeSkillMaster, Booty Bay Broker, AuctionDB, Naowh Forever or Forever Ledger, if you have one. Cheap items below a limit you set are skipped.
+- Settings and messages follow your game language (English, German, French, Spanish, Italian, Portuguese, Russian, Korean, Chinese).
 - A quiet one-line notice appears when a group or guild member runs a newer version.
 
 Works on its own, in party and raid. It only changes how rolls are shown, never the rolls.

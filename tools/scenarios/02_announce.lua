@@ -34,24 +34,24 @@ return {
         w:advance(20)
         t.count(me.sent, 0)
         t.count(brakk.sent, 0)
-        t.has(World.chatText(me, 3), "Brakk]  WON")
     end },
 
-    { "Auctionator: an item worth under 20 silver is neither announced nor printed", function(w, t)
+    { "Auctionator: an item worth under 20 silver is neither announced nor shown", function(w, t)
         local _, brakk = group(w, { true, true, true })
         brakk.env.Auctionator = { API = { v1 = { GetAuctionPriceByItemLink = function() return 1999 end } } }
         lootBlock(w, "Brakk")
-        w:advance(20)
+        w:advance(2)
+        t.lacks(World.screen(brakk), "Worn Shortsword")
+        w:advance(18)
         t.eq(itemLines(brakk), 0, "cheap item stays out of the group chat")
-        t.lacks(World.chatText(brakk, 3), "Worn Shortsword")
     end },
 
-    { "Auctionator: a cheap item is not printed with announce off either", function(w, t)
+    { "Auctionator: a cheap item is not shown with announce off either", function(w, t)
         local me = group(w, { false, false, false })
         me.env.Auctionator = { API = { v1 = { GetAuctionPriceByItemLink = function() return 40 end } } }
         lootBlock(w, "Brakk")
-        w:advance(20)
-        t.lacks(World.chatText(me, 3), "Worn Shortsword")
+        w:advance(2)
+        t.lacks(World.screen(me), "Worn Shortsword")
     end },
 
     { "the minimum value option sets the limit, 0 turns it off", function(w, t)
@@ -59,12 +59,12 @@ return {
         me.env.Auctionator = { API = { v1 = { GetAuctionPriceByItemLink = function() return 5000 end } } }
         me.env.WhoWonThatDB.minValueSilver = 80 -- 5000 copper = 50 silver: below the limit
         lootBlock(w, "Brakk")
-        w:advance(20)
-        t.lacks(World.chatText(me, 3), "Worn Shortsword")
+        w:advance(2)
+        t.lacks(World.screen(me), "Worn Shortsword")
         me.env.WhoWonThatDB.minValueSilver = 0
         w:drop(100, item(26, "Worn Dagger")):roll("Brakk", "need", 74):finish("Brakk")
-        w:advance(20)
-        t.has(World.chatText(me, 3), "Worn Dagger")
+        w:advance(2)
+        t.has(World.screen(me), "Worn Dagger")
     end },
 
     { "/wwt minvalue sets the limit, clamps it and rejects text", function(w, t)
@@ -116,23 +116,14 @@ return {
         t.eq(itemLines(me) + itemLines(seluna), 1, "exactly one of them announces")
     end },
 
-    { "a block announced by another player is not printed twice", function(w, t)
-        local me, _, _ = group(w, { true, true, false })
-        World.clearChat(me)
-        lootBlock(w, "Brakk")
-        w:advance(30)
-        local n = 0
-        for _, l in ipairs(World.chat(me, 3)) do if World.plain(l):find("Worn Shortsword", 1, true) then n = n + 1 end end
-        t.eq(n, 0, "own block hidden when the result was announced (hideWhenAnnounced)")
-    end },
-
-    { "chat lockdown (encounter): nothing is sent, own block still appears", function(w, t)
+    { "chat lockdown (encounter): nothing is sent, the roll window still shows it", function(w, t)
         local me, brakk = group(w, { true, true, false })
         for _, c in ipairs({ me, brakk }) do c.locked = true end
         lootBlock(w, "Brakk")
-        w:advance(30)
+        w:advance(3)
+        t.has(World.screen(me), "Worn Shortsword")
+        w:advance(27)
         t.count(brakk.sent, 0)
-        t.has(World.chatText(me, 3), "Worn Shortsword")
     end },
 
     { "everyone passed is announced once", function(w, t)

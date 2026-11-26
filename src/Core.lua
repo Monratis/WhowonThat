@@ -1,34 +1,27 @@
 -- Who Won That
--- Shows loot rolls and results in a chat window of your choice: one readable block per item once
--- the roll is finished (winner with a crown, then everyone else's roll).
--- "raw" format keeps Blizzard's original lines (filtered by roll type). Other chat windows are untouched.
+-- Shows loot rolls live in a small roll window instead of the game's roll lines in chat, keeps a dungeon loot
+-- summary and can announce results to the group.
 -- Settings: Esc > Options > AddOns > Who Won That, or /wwt
 
 local ADDON, ns = ...
 
 local DEFAULTS = {
-    frame = 1,          -- chat window number that receives rolls and results
-    format = "summary", -- "summary" = readable block per item, "raw" = Blizzard's original lines
     rolls = true,       -- master switch: show other players' rolls
     need = true,        -- show Need rolls
     greed = true,       -- show Greed rolls
     de = true,          -- (raw mode only) Disenchant rolls, if the game has them
     pass = true,        -- show passes
     wins = true,        -- show who won / that everyone passed
-    hideOthers = true,  -- always on: hide other loot messages in that window (picked up items etc.)
-    classColors = true, -- color names by class (custom palette if present, else Blizzard colors)
-    header = true,      -- put the addon name in front of each item line
-    byBoss = true,      -- always on: "Loot from: <boss>" above the items of one kill
+    byBoss = true,      -- always on: the boss name in announcements
     flagUnusable = true, -- always on: red X on Need rolls for armor the class cannot wear
     announce = "off",   -- send results to group chat: "off" or "all" (an old "mine" is migrated to "all" on load)
-    hideWhenAnnounced = true, -- do not print my own block for a result that was announced in group chat
-    detail = "all",     -- how much to show: "winner", "rolls" (winner + Need/Greed) or "all" (also passes)
-    layout = "auto",    -- "auto" = compact on a narrow chat window, "normal", or "compact"
-    hintSeen = false,   -- the one-time "how to choose a chat window" tip was shown
+    detail = "all",     -- how much an announcement says: "winner", "rolls" (winner + Need/Greed) or "all" (also passes)
+    hintSeen = false,   -- the first-run introduction was shown
     showValues = true,  -- show auction house values (from Auctionator, TSM or Booty Bay Broker) in the loot summary
     minValueSilver = 20, -- with a price addon: items worth less than this many silver are not shown or announced (0 = off)
     language = "auto",  -- language of settings and messages: "auto" (the game's language) or a locale such as "deDE"
     summary = "everyone", -- loot summary window at the end of a dungeon: "off", "mine" (only my items) or "everyone"
+    rollWindow = true,  -- the roll window: live rolls and, between them, what the group has won
 }
 
 local TYPE_LABEL = { need = "Need", greed = "Greed", de = "Disenchant", pass = "Pass" }
@@ -163,7 +156,7 @@ end
 local function Parse(msg)
     if not entriesBuilt then
         entriesBuilt = true
-        BuildEntries() -- built lazily: only the fallback and /wwt test need it
+        BuildEntries() -- built lazily, on the first loot message
     end
     for i = 1, #entries do
         local e = entries[i]
@@ -192,58 +185,21 @@ local function Parse(msg)
     return nil
 end
 
--- A chat window the player really has: shown or docked (the same test Blizzard uses), not a temporary
--- (whisper) window and not the combat log. The engine creates ChatFrame1..10 even when most are unused.
-local function IsUsableWindow(i)
-    local f = _G["ChatFrame" .. i]
-    if not f or f.isTemporary or (COMBATLOG and f == COMBATLOG) then
+-- Chat filter: while the roll window is on, the game's own roll lines (who picked Need / Greed / Pass, rolled,
+-- won) are hidden in every chat window; the window shows them. Other loot messages stay. The same message is
+-- asked about once per chat window, so the last answer is kept.
+local lastMsg, lastHide = nil, false
+local function Filter(_, _, msg)
+    if not (ns.db and ns.db.rollWindow) or type(msg) ~= "string" or (issecretvalue and issecretvalue(msg)) then
         return false
     end
-    local getInfo = FCF_GetChatWindowInfo or GetChatWindowInfo
-    if getInfo then
-        local name, _, _, _, _, _, shown, _, docked = getInfo(i)
-        return (name ~= nil and name ~= "") and (shown and true or (docked ~= nil and docked ~= false and docked ~= 0))
+    if msg ~= lastMsg then
+        local p = Parse(msg)
+        lastMsg, lastHide = msg, (p ~= nil and p.kind ~= "other")
     end
-    return f:IsShown() and true or false
+    return lastHide
 end
 
-local function TargetFrame()
-    if not ns.db then
-        return nil
-    end
-    -- if the saved window is not a real one (any more), use the main window
-    local i = IsUsableWindow(ns.db.frame) and ns.db.frame or 1
-    return _G["ChatFrame" .. i]
-end
-
--- Returning true = hide the message in this chat window.
--- the saved window's frame without building the "ChatFrameN" name string on every chat message
-local FRAME_NAMES = {}
-local function TargetFrameRaw()
-    local i = ns.db.frame
-    local name = FRAME_NAMES[i]
-    if not name then
-        name = "ChatFrame" .. i
-        FRAME_NAMES[i] = name
-    end
-    return _G[name]
-end
-
--- Summary mode is always on: roll lines are replaced by our block and all other loot lines are hidden
--- in this window too, so every loot message here is hidden and nothing needs to be parsed (cheap path).
-local function Filter(self)
-    if not ns.db then
-        return false
-    end
-    -- cheap rejection for all the other chat windows before the (slower) usability check
-    if self ~= TargetFrameRaw() and self ~= ChatFrame1 then
-        return false
-    end
-    return self == TargetFrame()
-end
-
--- Player as a clickable link with the FULL name (Name-Realm), so chat addons
--- (name coloring etc.) recognize the player like in a regular message.
 -- Class color: the user's custom palette if they use one, otherwise Blizzard's standard class colors.
 local function ClassColor(classFile)
     if not classFile then
@@ -263,37 +219,7 @@ local function ClassColor(classFile)
     return RAID_CLASS_COLORS and RAID_CLASS_COLORS[classFile]
 end
 
-local colorCodes = {}
-
-local function PlayerLink(full, short, classFile, display)
-    -- short name in the text, full name (Name-Realm) in the link
-    local link = "|Hplayer:" .. full .. "|h[" .. (display or short or full) .. "]|h"
-    if ns.db.classColors then
-        local class = classFile
-        if not class then
-            _, class = UnitClass(full)
-        end
-        if not class and short then
-            _, class = UnitClass(short)
-        end
-        -- the color code per class is computed once per block (cleared in RenderDrop), not once per player
-        local code = class and colorCodes[class]
-        if code == nil then
-            local c = ClassColor(class)
-            code = c and string.format("|cff%02x%02x%02x", math.floor(c.r * 255 + 0.5), math.floor(c.g * 255 + 0.5), math.floor(c.b * 255 + 0.5)) or false
-            if class then
-                colorCodes[class] = code
-            end
-        end
-        if code then
-            return code .. link .. "|r"
-        end
-    end
-    return link
-end
-
 -- ===== shared with the other files =====
 ns.ADDON, ns.ClassColor, ns.DEFAULTS, ns.Emit = ADDON, ClassColor, DEFAULTS, Emit
-ns.Filter, ns.HAS_HISTORY, ns.IsUsableWindow, ns.Parse = Filter, HAS_HISTORY, IsUsableWindow, Parse
-ns.PlayerLink, ns.Print, ns.STALE_SECONDS, ns.TargetFrame = PlayerLink, Print, STALE_SECONDS, TargetFrame
-ns.colorCodes, ns.items = colorCodes, items
+ns.Filter, ns.HAS_HISTORY, ns.Parse, ns.Print = Filter, HAS_HISTORY, Parse, Print
+ns.STALE_SECONDS, ns.items = STALE_SECONDS, items

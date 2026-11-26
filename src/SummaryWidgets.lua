@@ -483,4 +483,5 @@ ns.SUMMARY_HEADER, ns.SUMMARY_MAX_BODY, ns.SUMMARY_NAME_COL, ns.SUMMARY_PAD = SU
 ns.SUMMARY_ROW_PAD, ns.SUMMARY_SIDE, ns.SUMMARY_SUB_Y, ns.SUMMARY_TILE = SUMMARY_ROW_PAD, SUMMARY_SIDE, SUMMARY_SUB_Y, SUMMARY_TILE
 ns.SUMMARY_TILE_GAP, ns.SUMMARY_TOP, ns.SUMMARY_WIDTH, ns.SetClassColor = SUMMARY_TILE_GAP, SUMMARY_TOP, SUMMARY_WIDTH, SetClassColor
 ns.SetClassIcon, ns.StyleItemBorder, ns.TrySetFile = SetClassIcon, StyleItemBorder, TrySetFile
-ns.MarkCantUse = MarkCantUse
+ns.MarkCantUse, ns.ItemQualityColorRaw = MarkCantUse, ItemQualityColorRaw
+ns.ItemButtonEnter, ns.ItemButtonLeave, ns.ItemButtonClick = ItemButtonEnter, ItemButtonLeave, ItemButtonClick

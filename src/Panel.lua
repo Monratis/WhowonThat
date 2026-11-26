@@ -2,8 +2,8 @@
 local _, ns = ...
 
 local L = ns.L
-local AnnounceActive, DEFAULTS, IsUsableWindow, RunTest = ns.AnnounceActive, ns.DEFAULTS, ns.IsUsableWindow, ns.RunTest
-local SummaryCall, WindowName, WipeCoordination = ns.SummaryCall, ns.WindowName, ns.WipeCoordination
+local AnnounceActive, DEFAULTS = ns.AnnounceActive, ns.DEFAULTS
+local SummaryCall, WipeCoordination = ns.SummaryCall, ns.WipeCoordination
 
 local f = CreateFrame("Frame") -- the event frame (its events are registered in Main.lua)
 local GROUP_EVENTS = { "CHAT_MSG_PARTY", "CHAT_MSG_PARTY_LEADER", "CHAT_MSG_RAID", "CHAT_MSG_RAID_LEADER",
@@ -115,9 +115,12 @@ local function RegisterPanel()
         end
     end
 
-    local function AddBool(key, label, tooltip)
+    local function AddBool(key, label, tooltip, onChange)
         local setting = Settings.RegisterAddOnSetting(category, "WWT_" .. key:upper(), key, ns.db,
             Settings.VarType.Boolean, label, DEFAULTS[key])
+        if onChange then
+            setting:SetValueChangedCallback(onChange)
+        end
         return Settings.CreateCheckbox(category, setting, tooltip)
     end
 
@@ -138,47 +141,11 @@ local function RegisterPanel()
         return Settings.CreateDropdown(category, setting, Options, tooltip)
     end
 
-    -- ===== Where =====
-    Header(L("hdr_chat"))
-
-    -- only windows the player really has (see IsUsableWindow)
-    local frameSetting = Settings.RegisterAddOnSetting(category, "WWT_FRAME", "frame", ns.db,
-        Settings.VarType.Number, L("chat_window"), DEFAULTS.frame)
-    local function WindowOptions()
-        local container = Settings.CreateControlTextContainer()
-        local count = 0
-        for i = 1, (NUM_CHAT_WINDOWS or 10) do
-            if IsUsableWindow(i) then
-                container:Add(i, i .. " - " .. WindowName(i))
-                count = count + 1
-            end
-        end
-        if count == 0 then
-            container:Add(1, "1 - " .. WindowName(1))
-        end
-        -- This function runs every time the list is shown, so it must not change the saved value.
-        -- If the saved window is not available right now it is listed as such; the addon uses window 1
-        -- meanwhile (see TargetFrame) and goes back to the saved one when it is there again.
-        if not IsUsableWindow(ns.db.frame) and type(ns.db.frame) == "number" then
-            local name = WindowName(ns.db.frame)
-            container:Add(ns.db.frame, ns.db.frame .. " - " .. (name ~= "-" and name or L("window_word")) .. " " .. L("not_shown"))
-        end
-        return container:GetData()
-    end
-    Settings.CreateDropdown(category, frameSetting, WindowOptions,
-        L("chat_window_tip"))
-
-    AddChoice("layout", L("layout"), L("layout_tip"), {
-        { "auto", L("auto"), L("layout_auto_tip") },
-        { "normal", L("normal"), L("layout_normal_tip") },
-        { "compact", L("compact"), L("layout_compact_tip") },
-    })
-
-    AddChoice("detail", L("detail"), L("detail_tip"), {
-        { "all", L("detail_all"), L("detail_all_tip") },
-        { "rolls", L("detail_rolls"), L("detail_rolls_tip") },
-        { "winner", L("detail_winner"), L("detail_winner_tip") },
-    }, nil, ApplyDetail)
+    -- ===== Roll window =====
+    Header(L("hdr_window"))
+    AddBool("rollWindow", L("window_opt"), L("window_opt_tip"), function()
+        SummaryCall(ns.RollWindow.SetEnabled, ns.db.rollWindow)
+    end)
 
     -- ===== Group chat =====
     Header(L("hdr_group"))
@@ -187,10 +154,14 @@ local function RegisterPanel()
         { "off", L("off"), L("announce_off_tip") },
         { "all", L("announce_all"), L("announce_all_tip") },
     }, nil, UpdateGroupEvents)
-    local hideInit = AddBool("hideWhenAnnounced", L("hide_block"), L("hide_block_tip"))
-    if hideInit and hideInit.SetParentInitializer and announceInit then
+    local detailInit = AddChoice("detail", L("detail"), L("detail_tip"), {
+        { "all", L("detail_all"), L("detail_all_tip") },
+        { "rolls", L("detail_rolls"), L("detail_rolls_tip") },
+        { "winner", L("detail_winner"), L("detail_winner_tip") },
+    }, nil, ApplyDetail)
+    if detailInit and detailInit.SetParentInitializer and announceInit then
         -- only meaningful while announcements are on
-        hideInit:SetParentInitializer(announceInit, function()
+        detailInit:SetParentInitializer(announceInit, function()
             return ns.db.announce ~= "off"
         end)
     end
@@ -243,14 +214,14 @@ local function RegisterPanel()
     if CreateSettingsButtonInitializer and panel and panel.GetLayout then
         local layout = panel:GetLayout(category)
         if layout and layout.AddInitializer then
+            layout:AddInitializer(CreateSettingsButtonInitializer(L("rw_demo_name"),
+                L("rw_demo"), function() SummaryCall(ns.RollWindow.Demo) end, L("rw_demo_tip"), true))
             layout:AddInitializer(CreateSettingsButtonInitializer(L("btn_move_name"),
                 L("btn_move"), ns.MoveSummaryButton, L("btn_move_tip"), true))
             layout:AddInitializer(CreateSettingsButtonInitializer(L("btn_reset_name"),
                 L("btn_reset"), ns.ResetSummaryButtonPos, L("btn_reset_tip"), true))
             layout:AddInitializer(CreateSettingsButtonInitializer(L("min_value"),
                 L("min_value_btn"), OpenMinValuePopup, L("min_value_tip"), true))
-            layout:AddInitializer(CreateSettingsButtonInitializer(L("btn_sample_name"),
-                L("btn_sample"), RunTest, L("btn_sample_tip"), true))
         end
     end
 

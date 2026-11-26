@@ -34,9 +34,9 @@ local function ScheduleDrop(info, encounterID, lootListKey)
     end
     SummaryCall(ns.Summary.RecordWin, info, encounterID, lootListKey) -- remembered for the dungeon summary window
     if ns.IsCheapItem(info.itemHyperlink) then
-        return -- no chat block and no announcement; the summary window still lists it
+        return -- not in the roll window and not announced; the summary window still lists it
     end
-    local doneAt = GetTime()
+    SummaryCall(ns.RollWindow.OnFinished, info, encounterID, lootListKey)
     if AnnounceActive() and C_Timer and C_Timer.After then
         local state
         local key = DropKey(encounterID, lootListKey)
@@ -52,10 +52,10 @@ local function ScheduleDrop(info, encounterID, lootListKey)
             lo, hi = ANNOUNCE_DELAY_WINNER_MIN, ANNOUNCE_DELAY_WINNER_MAX
         end
         C_Timer.After(lo + math.random() * (hi - lo), function()
-            ProcessDrop(info, encounterID, doneAt, nil, state)
+            ProcessDrop(info, encounterID, state)
         end)
     else
-        ProcessDrop(info, encounterID, doneAt)
+        ProcessDrop(info, encounterID)
     end
 end
 
@@ -65,8 +65,12 @@ local function CheckDrop(encounterID, lootListKey)
         return
     end
     local info = C_LootHistory.GetSortedInfoForDrop(encounterID, lootListKey)
-    if type(info) ~= "table" or not (info.winner or info.allPassed) then
-        return -- the roll is still in progress
+    if type(info) ~= "table" then
+        return
+    end
+    if not (info.winner or info.allPassed) then
+        SummaryCall(ns.RollWindow.OnProgress, encounterID, lootListKey, info) -- still rolling: the live view
+        return
     end
     if ns.printedCount > 400 then
         wipe(printedDrops)
@@ -101,7 +105,7 @@ local function FlushDrops()
 end
 
 local function OnDropUpdate(encounterID, lootListKey)
-    if not HAS_HISTORY or not ns.db or ns.db.format ~= "summary" then
+    if not HAS_HISTORY or not ns.db then
         return
     end
     if encounterID == nil or lootListKey == nil then
@@ -168,7 +172,7 @@ local function MarkExistingDrops()
 end
 
 -- ===== Fallback: when the game has no loot history, rolls are assembled from chat messages =====
--- The data goes through the same RenderDrop, so the output looks identical.
+-- The data goes through the same path as loot history drops (roll window, summary, announcement).
 local KIND_TO_STATE = {
     need = ROLL_STATE.NeedMainSpec, greed = ROLL_STATE.Greed, de = ROLL_STATE.Greed,
     pass = ROLL_STATE.Pass,
@@ -217,7 +221,7 @@ local function Summarize(p)
 end
 
 local function OnLoot(msg)
-    if HAS_HISTORY or not ns.db or ns.db.format ~= "summary" then
+    if HAS_HISTORY or not ns.db then
         return
     end
     if type(msg) ~= "string" or (issecretvalue and issecretvalue(msg)) then
@@ -262,3 +266,4 @@ local addFilter = ChatFrame_AddMessageEventFilter or (ChatFrameUtil and ChatFram
 
 -- ===== shared with the other files =====
 ns.MarkExistingDrops, ns.OnDropUpdate, ns.OnLoot, ns.addFilter = MarkExistingDrops, OnDropUpdate, OnLoot, addFilter
+ns.IsIgnoredItem = IsIgnoredItem

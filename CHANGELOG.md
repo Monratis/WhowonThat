@@ -1,5 +1,17 @@
 # Changelog
 
+## 4.10.0
+
+- New roll window: every loot roll plays live in a small window - who chose Need, Greed or Pass, the numbers spinning in like a slot machine (the best one lands last), and the winner with a crown, a flash and sparks. Close finishes are called out.
+- Once someone chooses Need, Greed players drop out of the race at once (the game does not roll for them), instead of waiting for a number.
+- While the numbers land you see your place ("You lead!", "You: #2 of 4"); losing the lead flashes your row red, and a near miss tells you by how much.
+- The item header shows the item's type, slot and item level over a glow in its quality color; epic and better items get a longer spin, a double burst and stay longer on screen.
+- Between rolls the window shows everyone's luck for the run (average and best roll, a star for the luckiest, a skull for the unluckiest) and, with a price addon, the value of what they won.
+- Between rolls the window shows everyone in your group with the items they won and the roll that won them. It opens in dungeons and raids and whenever a roll starts.
+- The window matches your UI (EllesmereUI, ElvUI, TukUI or the Blizzard look). It starts right above the chat; drag it anywhere, drag its corner to make it wider, Ctrl + mouse wheel to scale it. It can also be placed in Edit Mode, EllesmereUI Unlock Mode and the ElvUI / TukUI / SpartanUI movers.
+- The roll window replaces the roll block in chat: the addon no longer prints rolls in chat, and the game's own roll lines are hidden in every chat tab while the window is on (other loot messages, like items you pick up, stay). The chat tab, layout and "hide my block" options are gone. Group announcements work as before; their Detail option is now under Group chat.
+- New commands: `/wwt window` (show / hide, `/wwt window reset` puts it back above the chat) and `/wwt demo` (a sample roll).
+
 ## 4.9.2
 
 - Auctionator prices are now found the same way its tooltip finds them (including gear and bags stored under an item-level key).

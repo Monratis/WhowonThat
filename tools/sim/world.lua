@@ -43,6 +43,7 @@ function World:addClient(spec)
     -- the one-time welcome sample would mix into every transcript; scenarios opt in with hintSeen = false
     spec.savedVariables = spec.savedVariables or {}
     if spec.savedVariables.hintSeen == nil then spec.savedVariables.hintSeen = true end
+    if spec.savedVariables.windowHintSeen == nil then spec.savedVariables.windowHintSeen = true end
     spec.savedVariables.frame = spec.savedVariables.frame or 3
     local c = Wow.new(spec)
     c.world = self

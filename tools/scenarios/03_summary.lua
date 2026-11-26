@@ -9,7 +9,9 @@ local TEMPLE = { name = "Sunken Temple", id = 109, type = "party", mapID = 109, 
     encounters = { { id = 3584, name = "Shade of Eranikus" } } }
 
 local function setup(w, summary, dungeon)
-    local me = w:addClient({ name = "Monra", class = "MAGE", savedVariables = { summary = summary or "everyone" } })
+    -- the roll window's board also names the dungeon; these scenarios look at the summary only
+    local me = w:addClient({ name = "Monra", class = "MAGE",
+        savedVariables = { summary = summary or "everyone", rollWindow = false } })
     local b = w:addClient({ name = "Brakk", class = "WARRIOR" })
     local s = w:addClient({ name = "Seluna", class = "PRIEST" })
     w:formGroup({ me, b, s }, "instance")

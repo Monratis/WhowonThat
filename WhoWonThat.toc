@@ -1,20 +1,20 @@
 ## Interface: 16001
 ## Title: Who Won That
-## Notes: Who rolled what and who won - one readable block per loot roll in a chat window of your choice (class colors, crown for the winner). Settings: /wwt
-## Notes-deDE: Wer hat was gewürfelt und wer hat gewonnen - ein lesbarer Block pro Beute-Wurf in einem Chatfenster deiner Wahl (Klassenfarben, Krone für den Gewinner). Einstellungen: /wwt
-## Notes-frFR: Qui a jeté quoi et qui a gagné - un bloc lisible par jet de butin dans la fenêtre de discussion de votre choix (couleurs de classe, couronne pour le gagnant). Options : /wwt
-## Notes-esES: Quién tiró qué y quién ganó: un bloque legible por cada tirada de botín en la ventana de chat que elijas (colores de clase, corona para el ganador). Opciones: /wwt
-## Notes-itIT: Chi ha tirato cosa e chi ha vinto: un blocco leggibile per ogni tiro sul bottino nella finestra di chat che preferisci (colori di classe, corona per il vincitore). Opzioni: /wwt
-## Notes-ptBR: Quem rolou o quê e quem ganhou: um bloco legível por rolagem de saque na janela de chat que você escolher (cores de classe, coroa para o vencedor). Opções: /wwt
-## Notes-ruRU: Кто что бросил и кто выиграл - один читаемый блок на каждый розыгрыш добычи в выбранном окне чата (цвета классов, корона победителю). Настройки: /wwt
-## Notes-koKR: 누가 무엇을 굴렸고 누가 이겼는지 - 선택한 대화창에 전리품 주사위마다 읽기 쉬운 한 블록으로 표시합니다 (직업 색상, 승자 왕관). 설정: /wwt
-## Notes-zhCN: 谁掷了什么、谁赢了 - 在你选择的聊天窗口中，每次拾取掷骰显示为一个易读的区块（职业颜色，赢家皇冠）。设置：/wwt
+## Notes: Every loot roll live in a small roll window: who picked what, the numbers spinning in, and who won. Plus a dungeon loot summary and optional group announcements. Settings: /wwt
+## Notes-deDE: Jeder Beutewurf live in einem kleinen Würfelfenster: wer was gewählt hat, die einrollenden Zahlen und wer gewonnen hat. Dazu eine Dungeon-Beuteübersicht und optionale Gruppenansagen. Einstellungen: /wwt
+## Notes-frFR: Chaque jet de butin en direct dans une petite fenêtre : qui a choisi quoi, les nombres qui défilent et qui a gagné. Avec un résumé du butin de donjon et des annonces au groupe en option. Options : /wwt
+## Notes-esES: Cada tirada de botín en directo en una pequeña ventana: quién eligió qué, los números girando y quién ganó. Además, un resumen del botín de la mazmorra y anuncios al grupo opcionales. Opciones: /wwt
+## Notes-itIT: Ogni tiro sul bottino in diretta in una piccola finestra: chi ha scelto cosa, i numeri che girano e chi ha vinto. In più un riepilogo del bottino della spedizione e annunci al gruppo facoltativi. Opzioni: /wwt
+## Notes-ptBR: Cada rolagem de saque ao vivo em uma pequena janela: quem escolheu o quê, os números girando e quem ganhou. Além de um resumo do saque da masmorra e anúncios opcionais ao grupo. Opções: /wwt
+## Notes-ruRU: Каждый розыгрыш добычи вживую в небольшом окне: кто что выбрал, выпадающие числа и кто победил. А также сводка добычи подземелья и необязательные объявления группе. Настройки: /wwt
+## Notes-koKR: 모든 전리품 주사위를 작은 창에서 실시간으로: 누가 무엇을 골랐는지, 돌아가는 숫자, 그리고 승자. 던전 전리품 요약과 선택적 파티 알림도 제공합니다. 설정: /wwt
+## Notes-zhCN: 在小窗口中实时观看每次拾取掷骰：谁选了什么、滚动的数字以及谁赢了。另有地下城拾取总结和可选的队伍通告。设置：/wwt
 ## Category: Loot
 ## X-License: MIT
-## OptionalDeps: Auctionator, TradeSkillMaster, BootyBayBroker, GearQuest
+## OptionalDeps: Auctionator, TradeSkillMaster, BootyBayBroker, GearQuest, EllesmereUI, ElvUI, Tukui
 ## IconTexture: Interface/AddOns/WhoWonThat/icon.tga
 ## Author: Monratis
-## Version: 4.9.2
+## Version: 4.10.0
 ## X-Curse-Project-ID: 1807384
 ## X-Website: https://github.com/Monratis/WhowonThat
 ## SavedVariables: WhoWonThatDB
@@ -39,6 +39,8 @@ src/SummaryData.lua
 src/SummaryWidgets.lua
 src/SummaryWindow.lua
 src/SummaryButton.lua
+src/Theme.lua
+src/RollWindow.lua
 src/Movers.lua
 src/DungeonBook.lua
 src/SummaryEnd.lua
