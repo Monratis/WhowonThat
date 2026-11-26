@@ -52,7 +52,6 @@ local CROWN = "Interface\\GroupFrame\\UI-Group-LeaderIcon"
 local SPARK = "Interface\\Cooldown\\star4"
 local DOTS = { ".", "..", "..." }
 local MUTED = "|cff9d9d9d"
-local QUALITY_BY_HEX = { ["9d9d9d"] = 0, ffffff = 1, ["1eff00"] = 2, ["0070dd"] = 3, a335ee = 4, ff8000 = 5 }
 local LUCKY_ICON = "Interface\\TargetingFrame\\UI-RaidTargetingIcon_1"   -- star
 local UNLUCKY_ICON = "Interface\\TargetingFrame\\UI-RaidTargetingIcon_8" -- skull
 
@@ -124,20 +123,16 @@ end
 
 -- "[Item]" in its quality color, without the hyperlink markup (a font string would print it as text)
 local function ItemLabel(link)
-    local color, name = link:match("|c(%x%x%x%x%x%x%x%x).-|h%[(.-)%]|h")
+    local color, name = link:match("^(|c.-)|H.-|h%[(.-)%]|h")
     if color and name then
-        return "|c" .. color .. name .. "|r"
+        return color .. name .. "|r"
     end
     return link:match("%[(.-)%]") or link
 end
 
--- quality number (0 poor .. 5 legendary) and its color; the link's own color when the client does not know it yet
+-- quality number (0 poor .. 5 legendary) and its color, known from the link even before the item is cached
 local function Quality(link)
     local r, g, b, q = ns.ItemQualityColorRaw(link)
-    if not q then
-        local hex = link:match("|c%x%x(%x%x%x%x%x%x)")
-        q = hex and QUALITY_BY_HEX[hex:lower()]
-    end
     return q, r, g, b
 end
 
@@ -627,15 +622,6 @@ local function BuildRollPane(rp)
     rp.qglow = rp:CreateTexture(nil, "BACKGROUND", nil, 2)
     rp.qglow:SetPoint("TOPLEFT", 2, -2)
     rp.qglow:SetHeight(ROLL_HEAD - 10)
-    rp.qglowPulse = NewAnim(rp.qglow)
-    if rp.qglowPulse then
-        rp.qglowPulse:SetLooping("BOUNCE")
-        local a = AddAnim(rp.qglowPulse, "Alpha", 1.1)
-        if a then
-            a:SetFromAlpha(0.45)
-            a:SetToAlpha(1)
-        end
-    end
     rp.item = CreateFrame("Button", nil, rp)
     rp.item:SetSize(ICON, ICON)
     rp.item:SetPoint("TOPLEFT", PAD, -PAD)
@@ -875,6 +861,22 @@ local function BuildWindow()
 end
 
 local buildFailed = false
+-- Right after login the client has not loaded most items yet: once their data arrives, draw the window again so
+-- the item type, slot and level show up. Several items often arrive together, so one redraw covers them all.
+local itemInfoPending = false
+local function OnItemInfo()
+    if itemInfoPending or not (win and win:IsShown()) then
+        return
+    end
+    itemInfoPending = true
+    C_Timer.After(0.1, function()
+        itemInfoPending = false
+        if win and win:IsShown() then
+            Restyle()
+        end
+    end)
+end
+
 local function EnsureWindow()
     if win or buildFailed then
         return win
@@ -886,6 +888,8 @@ local function EnsureWindow()
         if geterrorhandler then
             geterrorhandler()(err)
         end
+    elseif win.RegisterEvent and pcall(win.RegisterEvent, win, "GET_ITEM_INFO_RECEIVED") then
+        win:SetScript("OnEvent", OnItemInfo)
     end
     return win
 end
@@ -1136,16 +1140,8 @@ function RenderRoll()
     rp.status:SetText(StatusText(d))
     local q, qr, qg, qb = Quality(d.item)
     d.epic = q ~= nil and q >= 4
+    rp.qcolor = { qr, qg, qb }
     Gradient(rp.qglow, "HORIZONTAL", qr, qg, qb, d.epic and 0.30 or 0.16, qr, qg, qb, 0)
-    if rp.qglowPulse then
-        if d.epic and not d.done then
-            if not rp.qglowPulse:IsPlaying() then
-                rp.qglowPulse:Play()
-            end
-        else
-            rp.qglowPulse:Stop()
-        end
-    end
     rp.queue:SetText(#queue > 1 and (MUTED .. "+" .. (#queue - 1) .. "|r") or "")
     local ar, ag, ab = Theme.Accent()
     rp.timer:SetColorTexture(ar, ag, ab, 0.9)
@@ -1410,6 +1406,12 @@ local function Tick(self, elapsed)
         local rp = self.rollPane
         if not d.done then
             busy = true
+            if d.epic and rp.qcolor then
+                -- the epic wash breathes. Redrawn here rather than with an alpha animation: on this client an
+                -- animated gradient texture loses its colors and flashes white.
+                local r, g, b = rp.qcolor[1], rp.qcolor[2], rp.qcolor[3]
+                Gradient(rp.qglow, "HORIZONTAL", r, g, b, 0.14 + 0.16 * (math.sin(now * 2.8) + 1) / 2, r, g, b, 0)
+            end
             local t = rollTimers[d.itemID]
             if t and t.endsAt > now then
                 local frac = math.min(1, (t.endsAt - now) / t.duration)
@@ -1953,29 +1955,30 @@ local function Demo()
         end
     end
     local S = ROLL_STATE
+    -- A plate helm: three Need, two Greed (they drop out, so the game gives them no number), and the priest wins
+    -- it on Need, so the ninja loot flag shows. You greed, so your own class never adds a second ninja.
+    local ninja = { "Seluna", "PRIEST", S.NeedMainSpec }
     local cast = {
-        { me, myClass, S.NeedMainSpec, true }, { "Brakk", "WARRIOR", S.NeedMainSpec }, { "Seluna", "PRIEST", S.Greed },
-        { "Rax", "ROGUE", S.NeedOffSpec }, { "Morv", "HUNTER", S.Pass },
+        { "Brakk", "WARRIOR", S.NeedMainSpec }, { me, myClass, S.Greed, true }, ninja,
+        { "Rax", "ROGUE", S.Greed }, { "Thorgrim", "PALADIN", S.NeedMainSpec },
     }
     local used = {}
     for _, c in ipairs(cast) do
-        if c[3] ~= S.Pass and c[3] ~= S.Greed then -- someone needs, so the game does not roll for Greed
+        if c[3] == S.NeedMainSpec and c ~= ninja then
             local n
             repeat
-                n = math.random(1, 100)
+                n = math.random(15, 90)
             until not used[n]
             used[n] = true
             c.roll = n
         end
     end
-    local best
-    for _, c in ipairs(cast) do
-        local st = STATE_INFO[c[3]]
-        if c.roll and (not best or st.rank < STATE_INFO[best[3]].rank
-            or (st.rank == STATE_INFO[best[3]].rank and c.roll > best.roll)) then
-            best = c
-        end
+    local top = 0
+    for n in pairs(used) do
+        top = math.max(top, n)
     end
+    ninja.roll = math.random(top + 1, 100) -- the ninja always wins the demo
+    local best = ninja
     local function Info(chosen, rolled, finished)
         local list = {}
         for i, c in ipairs(cast) do

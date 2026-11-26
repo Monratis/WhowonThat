@@ -98,11 +98,24 @@ local function ItemTexture(link)
     return "Interface\\Icons\\INV_Misc_QuestionMark"
 end
 
--- r, g, b of the item's quality, and the quality number when the client knows it
+-- The quality a link carries itself, for items the client has not loaded yet (right after login): either the
+-- classic "|cffa335ee" color or the newer "|cnIQ4:" quality token.
+local QUALITY_BY_HEX = { ["9d9d9d"] = 0, ffffff = 1, ["1eff00"] = 2, ["0070dd"] = 3, a335ee = 4, ff8000 = 5 }
+local function LinkQuality(link)
+    local iq = link:match("|cnIQ(%d+):")
+    if iq then
+        return tonumber(iq)
+    end
+    local hex = link:match("|c%x%x(%x%x%x%x%x%x)")
+    return hex and QUALITY_BY_HEX[hex:lower()]
+end
+
+-- r, g, b of the item's quality and the quality number. The link's own quality comes first: the game sends it
+-- with the link, while the client's item info can report a placeholder quality (white) until the item is loaded.
 local function ItemQualityColorRaw(link)
+    local quality = LinkQuality(link)
     local getInfo = (C_Item and C_Item.GetItemInfo) or GetItemInfo
-    local quality
-    if getInfo then
+    if not quality and getInfo then
         local ok, _, _, q = pcall(getInfo, link)
         if ok and PlainNumber(q) then
             quality = q

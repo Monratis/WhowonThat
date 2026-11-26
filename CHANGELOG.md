@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.10.2
+
+- Epic items no longer flash a white box behind the item while the group is choosing; the purple glow breathes from the start.
+- Items show their quality color right away, even before the game has loaded them (the first roll or `/wwt test` after login was white for a moment). The item type, slot and level appear as soon as the game has them.
+- `/wwt test` and `/wwt demo` play a fuller sample: three Need, two Greed that drop out, and a ninja winner.
+
 ## 4.10.1
 
 - New roll window: every loot roll plays live in a small window - who chose Need, Greed or Pass, the numbers spinning in like a slot machine (the best one lands last), and the winner with a crown, a flash and sparks. Close finishes are called out.

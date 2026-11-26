@@ -1,5 +1,7 @@
 **Who Won That** turns the flood of group loot roll lines into a small live roll window: who picked what, the numbers spinning in, and who won.
 
+![The roll window](https://raw.githubusercontent.com/Monratis/WhowonThat/media/images/roll-window.gif)
+
 **New in 4.10:** the roll window. Every loot roll plays out like a slot machine, right above your chat, in the look of your UI. The game's roll spam is hidden in chat; other loot messages stay.
 
 ## The roll window

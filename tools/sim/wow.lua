@@ -176,7 +176,7 @@ function Wow.new(opts)
     }
     for ev in ([[ADDON_LOADED PLAYER_LOGIN PLAYER_ENTERING_WORLD ZONE_CHANGED_NEW_AREA ENCOUNTER_END BOSS_KILL CHAT_MSG_COMBAT_HOSTILE_DEATH
         LFG_COMPLETION_REWARD CHALLENGE_MODE_COMPLETED SCENARIO_COMPLETED GROUP_ROSTER_UPDATE
-        LOOT_HISTORY_UPDATE_DROP CHAT_MSG_LOOT CHAT_MSG_ADDON START_LOOT_ROLL]]):gmatch("%S+") do
+        LOOT_HISTORY_UPDATE_DROP CHAT_MSG_LOOT CHAT_MSG_ADDON START_LOOT_ROLL GET_ITEM_INFO_RECEIVED]]):gmatch("%S+") do
         client.knownEvents[ev] = true
     end
     for _, ev in ipairs(opts.unknownEvents or {}) do client.knownEvents[ev] = nil end
@@ -419,7 +419,8 @@ function Wow.new(opts)
         end,
         GetItemInfo = function(link)
             local it = client.items[itemID(link)]
-            return it and (it.name or "Item") or nil, link, it and it.quality or 1
+            if not it then return nil end -- like the game: nothing until the item is loaded
+            return it.name or "Item", link, it.quality or 1
         end,
         GetItemQualityColor = function() return 1, 1, 1, "ffffffff" end,
     }

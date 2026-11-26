@@ -123,14 +123,14 @@ return {
         t.ok(not shown(me), "and after the roll the closed board stays away")
     end },
 
-    { "/wwt demo plays a made-up roll to the end", function(w, t)
+    { "/wwt demo plays a made-up roll to the end: the ninja wins", function(w, t)
         local me = group(w)
         me.env.SlashCmdList.WHOWONTHAT("demo")
         w:advance(1)
         t.ok(shown(me), "the demo opens the window")
         t.has(World.screen(me), "Lionheart Helm")
         w:advance(7)
-        t.has(World.screen(me), "wins!")
+        t.has(World.screen(me), "Seluna wins!") -- three Need, two Greed, and the priest ninjas the plate helm
         w:advance(10)
         t.ok(not shown(me), "the demo ends outside an instance")
     end },
@@ -185,7 +185,7 @@ return {
         local me = group(w)
         me.items[40] = { quality = 4 }
         w:encounter(100, "Hogger")
-        w:drop(100, item(40, "Shiny Epic")):roll("Brakk", "need", 74):roll("Monra", "need", 20)
+        w:drop(100, item(40, "Shiny Epic", "a335ee")):roll("Brakk", "need", 74):roll("Monra", "need", 20)
             :roll("Seluna", "pass"):finish("Brakk")
         w:advance(9)
         t.ok(shown(me), "still on screen thanks to the longer hold")
@@ -219,5 +219,15 @@ return {
         d:finish("Brakk")
         w:advance(3)
         t.has(World.screen(me), "Brakk wins!")
+    end },
+
+    { "an item that is not loaded yet keeps its quality, and the window redraws when it loads", function(w, t)
+        local me = group(w)
+        me.slash("/wwt demo")
+        w:advance(1)
+        me.fire("GET_ITEM_INFO_RECEIVED", 12640, true)
+        me.fire("GET_ITEM_INFO_RECEIVED", 12640, true)
+        w:advance(1)
+        t.has(World.screen(me), "Lionheart Helm")
     end },
 }

@@ -143,7 +143,7 @@ function World:encounter(id, name)
 end
 
 local function item(id, name, color)
-    return string.format("|cff%s|Hitem:%d::::::::::::::|h[%s]|h|r", color or "a335ee", id, name)
+    return string.format("|cff%s|Hitem:%d::::::::::::::|h[%s]|h|r", color or "ffffff", id, name)
 end
 World.item = item
 
