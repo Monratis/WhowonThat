@@ -1,6 +1,6 @@
 # Changelog
 
-## 4.10.0
+## 4.10.1
 
 - New roll window: every loot roll plays live in a small window - who chose Need, Greed or Pass, the numbers spinning in like a slot machine (the best one lands last), and the winner with a crown, a flash and sparks. Close finishes are called out.
 - Once someone chooses Need, Greed players drop out of the race at once (the game does not roll for them), instead of waiting for a number.
