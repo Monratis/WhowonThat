@@ -218,13 +218,13 @@ local function MakeRow()
     Theme.SetFont(row.name, 15)
     row.name:SetWordWrap(false)
     row.name:SetJustifyH("LEFT")
-    row.name:SetPoint("TOPLEFT", row.slot, "TOPRIGHT", 10, -6)
-    -- the auction house value, under the name (with a price addon that knows the item)
+    row.name:SetPoint("TOPLEFT", row.slot, "TOPRIGHT", 10, -8)
+    -- the auction house value, on the name's line at its right end (with a price addon that knows the item), so the
+    -- countdown bar has the bottom of the row to itself
     row.value = row:CreateFontString(nil, "OVERLAY")
-    Theme.SetFont(row.value, 12)
+    Theme.SetFont(row.value, 13, true)
     row.value:SetWordWrap(false)
-    row.value:SetJustifyH("LEFT")
-    row.value:SetPoint("TOPLEFT", row.name, "BOTTOMLEFT", 0, -3)
+    row.value:SetJustifyH("RIGHT")
     row.chosen = row:CreateFontString(nil, "OVERLAY")
     Theme.SetFont(row.chosen, 14)
     row.chosen:SetPoint("RIGHT", row, "RIGHT", -8, 0)
@@ -274,8 +274,15 @@ local function Fill(e)
         end
     end
     row.textRight = right - 6
-    row.name:SetPoint("RIGHT", row, "RIGHT", row.textRight, 0)
-    row.value:SetPoint("RIGHT", row, "RIGHT", row.textRight, 0)
+    row.value:ClearAllPoints()
+    row.value:SetPoint("TOPRIGHT", row, "TOPRIGHT", row.textRight, -9)
+    row.name:ClearAllPoints()
+    row.name:SetPoint("TOPLEFT", row.slot, "TOPRIGHT", 10, -8)
+    if row.value:GetText() ~= "" then
+        row.name:SetPoint("TOPRIGHT", row.value, "TOPLEFT", -8, 1) -- a long name is cut before the value
+    else
+        row.name:SetPoint("TOPRIGHT", row, "TOPRIGHT", row.textRight, -8)
+    end
     row.barBg:SetPoint("RIGHT", row, "RIGHT", row.textRight, 0)
     row.chosen:SetShown(e.chosenAt ~= nil)
 end

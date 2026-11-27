@@ -1,5 +1,9 @@
 # Changelog
 
+## 4.11.6
+
+- On the Need / Greed / Pass rows the item's value now sits on the name's line at the right, clear of the countdown bar.
+
 ## 4.11.5
 
 - Every win effect now stays inside its window: no more darkening of the whole screen for a legendary, no more rings growing out of the icon, and a smaller light and rays behind the icon (in the roll window and the loot toast).
