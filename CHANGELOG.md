@@ -1,5 +1,9 @@
 # Changelog
 
+## 4.11.9
+
+- Fixed: a win played two sounds (the game's toast and the addon's). While the addon's loot toast is on, the game's "you won" toast stays away entirely; items the roll window does not show get the addon's toast and the win sound right away.
+
 ## 4.11.8
 
 - In a dungeon or raid, `/wwt` and the minimap button open the roll window (the board between rolls); elsewhere they open the settings as before. New `/wwt options` opens the settings anywhere.

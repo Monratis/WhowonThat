@@ -233,6 +233,44 @@ return {
         t.ok(active[3]:IsShown(), "a toast that is not a roll win stays")
     end },
 
+    { "one sound per win: the game's alert does not hear roll wins, and skipped items get our toast at once", function(w, t)
+        local registered = { LOOT_ITEM_ROLL_WON = true }
+        local alert = {
+            IsEventRegistered = function(_, ev) return registered[ev] == true end,
+            UnregisterEvent = function(_, ev) registered[ev] = nil end,
+            RegisterEvent = function(_, ev) registered[ev] = true end,
+        }
+        local me = w:addClient({ name = "Monra", class = "MAGE", globals = { AlertFrame = alert } })
+        local played = recordSounds(me)
+        w:advance(0.1)
+        t.ok(not registered.LOOT_ITEM_ROLL_WON, "the game's alert no longer hears roll wins")
+        me.fire("LOOT_ITEM_ROLL_WON", item(11754, "Black Diamond"), 1, 2, 40)
+        frames(w, me, 2)
+        t.ok(shown(me, "WhoWonThatLootToast"), "an item the window skips gets our toast right away")
+        t.ok(has(played, "UI_EPICLOOT_TOAST"), "with the win sound")
+        me.env.WhoWonThatDB.wonToast = false
+        me.fire("PLAYER_LOGIN")
+        w:advance(0.1)
+        t.ok(registered.LOOT_ITEM_ROLL_WON, "turned off: the game's alert hears roll wins again")
+    end },
+
+    { "the game's toast came anyway: our window keeps its win sound quiet", function(w, t)
+        local me = group(w)
+        local system = { alertFramePool = { EnumerateActive = function() return function() end end } }
+        function system:ShowAlert() end
+        me.env.LootAlertSystem = system
+        local played = recordSounds(me)
+        w:encounter(100, "Hogger")
+        local link = item(25, "Worn Shortsword")
+        local d = w:drop(100, link):roll("Brakk", "need", 30):roll("Monra", "need", 80):roll("Seluna", "pass")
+        d:finish("Monra")
+        me.fire("LOOT_ITEM_ROLL_WON", link, 1, 1, 80)
+        me.env.LootAlertSystem:ShowAlert(link, 1, 1, 80) -- the game's toast with its sound
+        frames(w, me, 120)
+        t.has(World.screen(me), "You won it!")
+        t.ok(not has(played, "UI_EPICLOOT_TOAST"), "no second win sound")
+    end },
+
     { "the win sound when you win, another one when you rolled and lost, the coin when you passed", function(w, t)
         local me = group(w)
         local played = recordSounds(me)

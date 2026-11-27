@@ -8,8 +8,11 @@
 --    When EllesmereUI's or ElvUI's own roll list is on, or under WoW Forever's Gamepad interface style (it has its
 --    own roll frame, which the closed route does not reach), the addon stays out of the way.
 --  * Loot toast: when you win a roll, the addon's own toast shows it once the numbers have landed in the roll window,
---    in the item's rarity look. The game's "you won" toast for that item is put away as it shows (LootAlertSystem);
---    items the roll window does not show (ignored or below the minimum value) keep the game's toast.
+--    in the item's rarity look. The game's "you won" toast would come at once, with its own sound, before the
+--    numbers land - two sounds for one win. So while our toast is on, the game's AlertFrame does not hear
+--    LOOT_ITEM_ROLL_WON (given back when the toast is turned off), and items the roll window does not show
+--    (ignored or below the minimum value) get our toast and the win sound right away. Should the game's toast still
+--    come some other way, it is put away as it shows (LootAlertSystem) and our window keeps quiet for that win.
 local _, ns = ...
 
 local L = ns.L
@@ -435,7 +438,9 @@ end
 local toast
 local toastQueue = {}
 local claimed = {}         -- [item link] = time: wins whose game toast we put away (our toast shows them)
+local gameSounded = {}     -- [item link] = time: the game's toast showed (and sounded) for this win anyway
 local alertHooked = false
+local alertClaimed = false -- the game's AlertFrame does not hear LOOT_ITEM_ROLL_WON while our toast is on
 
 local function KindText(st)
     if not st then
@@ -601,9 +606,12 @@ function ShowNextToast()
 end
 
 -- Called by the roll window when you won a roll and its numbers have landed.
-local function Toast(item, look, st, roll)
+local function Toast(item, look, st, roll, sound)
     if not (Enabled("wonToast") and CreateFrame) or type(item) ~= "string" then
         return
+    end
+    if sound then
+        RollFX.SoundAny("UI_EPICLOOT_TOAST")
     end
     toastQueue[#toastQueue + 1] = { item = item, look = look or RollFX.Look(item), st = st, roll = roll }
     if #toastQueue > 5 then
@@ -637,6 +645,7 @@ local function OnGameToast(system, link, _, rollType)
         return
     end
     claimed[link] = nil
+    gameSounded[link] = GetTime()
     local pool = system.alertFramePool
     if type(pool) ~= "table" or type(pool.EnumerateActive) ~= "function" then
         return
@@ -661,16 +670,48 @@ local function HookGameToast()
     hooksecurefunc(system, "ShowAlert", OnGameToast)
 end
 
-local function OnRollWon(link)
+-- The game's AlertFrame stops (or starts again) hearing roll wins as our toast is turned on (or off).
+local function ClaimAlert(on)
+    local alert = _G.AlertFrame
+    if type(alert) ~= "table" or type(alert.UnregisterEvent) ~= "function" or on == alertClaimed then
+        return
+    end
+    if on then
+        local ok, was = pcall(alert.IsEventRegistered, alert, "LOOT_ITEM_ROLL_WON")
+        if ok and was and pcall(alert.UnregisterEvent, alert, "LOOT_ITEM_ROLL_WON") then
+            alertClaimed = true
+        end
+    elseif pcall(alert.RegisterEvent, alert, "LOOT_ITEM_ROLL_WON") then
+        alertClaimed = false
+    end
+end
+
+-- your win: shown by the roll window, our toast follows once the numbers land; otherwise, with the game's alert
+-- silenced, our toast (and the win sound) comes now
+local function OnRollWon(link, rollType, roll)
     HookGameToast() -- in case the alert system was not there yet at login
     if OursToShow(link) then
         Claim(link)
+    elseif alertClaimed and Enabled("wonToast") and UsableName(link) then
+        local st = (rollType == 1 and { kind = "need" }) or (rollType == 2 and { kind = "greed" }) or nil
+        Toast(link, nil, st, PlainNumber(roll) and roll or nil, true)
     end
+end
+
+-- True when the game's own toast already sounded for this win: the roll window then keeps its win sound quiet.
+local function GameSounded(link)
+    local t = type(link) == "string" and gameSounded[link]
+    if t and GetTime() - t < 60 then
+        gameSounded[link] = nil
+        return true
+    end
+    return false
 end
 
 -- ===== events =====
 local function Apply()
     HookGameToast()
+    ClaimAlert(Enabled("wonToast"))
     if Enabled("rollButtons") then
         Suppress()
     elseif suppressed then
@@ -694,7 +735,7 @@ if events then
         "LOOT_ITEM_ROLL_WON" }) do
         pcall(events.RegisterEvent, events, ev) -- events this client does not know are skipped
     end
-    events:SetScript("OnEvent", function(_, event, a1, a2)
+    events:SetScript("OnEvent", function(_, event, a1, a2, a3, a4)
         if not ns.db then
             return
         elseif event == "PLAYER_LOGIN" then
@@ -727,10 +768,10 @@ if events then
                 Remove(entries[i].id)
             end
         elseif event == "LOOT_ITEM_ROLL_WON" then
-            OnRollWon(a1)
+            OnRollWon(a1, a3, a4) -- itemLink, quantity, rollType, roll
         end
     end)
 end
 
 -- ===== shared with the other files =====
-ns.LootFrames = { Toast = Toast, Apply = Apply }
+ns.LootFrames = { Toast = Toast, Apply = Apply, GameSounded = GameSounded }

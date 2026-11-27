@@ -1730,6 +1730,9 @@ end
 function Rarity.ResultSound(d)
     local w = d.winner
     if w.isSelf then
+        if ns.LootFrames and ns.LootFrames.GameSounded(d.item) then
+            return -- the game's own toast already played its win sound for this item
+        end
         if d.look.tier.power >= 5 then
             RollFX.SoundAny("UI_LEGENDARY_LOOT_TOAST", "UI_EPICLOOT_TOAST")
         else
