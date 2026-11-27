@@ -152,6 +152,16 @@ return {
         t.ok(rel == loot, "where the player put it")
     end },
 
+    { "the roll buttons show the item's auction house value", function(w, t)
+        local me = group(w)
+        me.env.ForeverLedgerAPI = { version = 1, GetPrice = function(id) return id == 40 and 1234567 or nil end }
+        w:advance(0.1)
+        me.startRoll(15, EPIC, 60)
+        t.has(World.screen(me), "123g 45s 67c")
+        me.startRoll(16, item(41, "Unknown Green", "1eff00"), 60)
+        t.eq(#me.errors, 0, "an item without a price shows no value")
+    end },
+
     { "Need is refused when the game says this character cannot need", function(w, t)
         local me = group(w)
         w:advance(0.1)

@@ -1,5 +1,9 @@
 # Changelog
 
+## 4.11.4
+
+- The Need / Greed / Pass rows show the item's auction house value under its name (with a price addon that knows the item); 20 gold and more in gold.
+
 ## 4.11.3
 
 - The Need / Greed / Pass rows are a size smaller again: still easy to see and to click, without taking over the screen.

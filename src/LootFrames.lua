@@ -219,6 +219,12 @@ local function MakeRow()
     row.name:SetWordWrap(false)
     row.name:SetJustifyH("LEFT")
     row.name:SetPoint("TOPLEFT", row.slot, "TOPRIGHT", 10, -6)
+    -- the auction house value, under the name (with a price addon that knows the item)
+    row.value = row:CreateFontString(nil, "OVERLAY")
+    Theme.SetFont(row.value, 12)
+    row.value:SetWordWrap(false)
+    row.value:SetJustifyH("LEFT")
+    row.value:SetPoint("TOPLEFT", row.name, "BOTTOMLEFT", 0, -3)
     row.chosen = row:CreateFontString(nil, "OVERLAY")
     Theme.SetFont(row.chosen, 14)
     row.chosen:SetPoint("RIGHT", row, "RIGHT", -8, 0)
@@ -242,6 +248,8 @@ local function Fill(e)
     StyleItemBorder(row.slot, e.link)
     local count = PlainNumber(info[3]) and info[3] > 1 and (" x" .. info[3]) or ""
     row.name:SetText(ItemLabel(e.link) .. count)
+    local worth = look.band >= 1 and "|cffd9b56a" or MUTED -- gold from 20 gold up, as in the roll window
+    row.value:SetText(look.price and (worth .. ns.FormatMoney(look.price) .. "|r") or "")
     Gradient(row.wash, "HORIZONTAL", look.r, look.g, look.b, look.tier.wash + 0.04, look.r, look.g, look.b, 0)
     for _, b in ipairs(row.buttons) do
         local def = b.def
@@ -267,6 +275,7 @@ local function Fill(e)
     end
     row.textRight = right - 6
     row.name:SetPoint("RIGHT", row, "RIGHT", row.textRight, 0)
+    row.value:SetPoint("RIGHT", row, "RIGHT", row.textRight, 0)
     row.barBg:SetPoint("RIGHT", row, "RIGHT", row.textRight, 0)
     row.chosen:SetShown(e.chosenAt ~= nil)
 end
