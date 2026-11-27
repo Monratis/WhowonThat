@@ -1,5 +1,9 @@
 # Changelog
 
+## 4.11.1
+
+- The Need / Greed / Pass buttons sit where the game's own roll popups would be: wherever your UI (ElvUI movers, EllesmereUI Unlock Mode and the like) has placed them, otherwise in the game's spot in the middle above the action bars - instead of on top of the roll window.
+
 ## 4.11.0
 
 - Rarer items get a bigger finale, always in the item's own quality color and without flashing: grey and white stay quiet, green sends a light over the winner and a few motes, blue a thin ring from the icon, purple dims the rest of the window while the last number spins and blooms behind the icon, and a legendary fades its name in, lets embers drift up and leaves slow rays behind the icon.

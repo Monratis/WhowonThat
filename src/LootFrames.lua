@@ -1,6 +1,6 @@
 -- Who Won That: the addon's own roll buttons and loot toast, in place of the game's.
---  * Roll buttons: every roll you may roll on gets a row docked to the roll window - the item, its countdown and
---    Need / Greed / Disenchant / Pass. The game builds its roll popups (GroupLootFrame1..N inside GroupLootContainer)
+--  * Roll buttons: every roll you may roll on gets a row where the game shows its roll popups - the item, its
+--    countdown and Need / Greed / Disenchant / Pass. The game builds its roll popups (GroupLootFrame1..N inside GroupLootContainer)
 --    from START_LOOT_ROLL through its internal game event router. While our buttons are on, that one route is closed
 --    (GameEvent.UnregisterInternalEvent), so no popup is ever built and GroupLootContainer - a frame of the managed
 --    bottom column - is never touched by addon code. Opening the route again from here would run the game's popup
@@ -19,6 +19,7 @@ local TrySetFile, UsableName, ItemLabel = ns.TrySetFile, ns.UsableName, ns.ItemL
 
 local ROW_H, ROW_GAP, SLOT, BTN = 40, 3, 34, 30
 local MAX_ROWS = 8
+local PROMPT_W = 300            -- a little wider than the game's 277 pixel roll popup
 local CHOSEN_HOLD = 0.9         -- seconds a row stays after you chose, showing your choice
 local TOAST_W, TOAST_H, TOAST_ICON = 290, 60, 40
 local TOAST_TIME = 5            -- seconds a toast stays (plus the item's extra hold)
@@ -71,7 +72,7 @@ local function GamepadStyle()
 end
 
 -- ===== the roll buttons =====
-local prompt               -- the container docked to the roll window
+local prompt               -- the container of the rows, in the game's own roll popup spot
 local entries = {}         -- { id = rollID, link, duration, row, chosenAt }, oldest first
 local durations = {}       -- [rollID] = seconds the roll lasts (from START_LOOT_ROLL)
 local rowPool = {}
@@ -275,40 +276,61 @@ local function TakeRow()
     return row
 end
 
+-- Nothing secret among the values (a frame fed secret data hands back secret values from its getters).
+local function Readable(...)
+    for i = 1, select("#", ...) do
+        if issecretvalue and issecretvalue((select(i, ...))) then
+            return false
+        end
+    end
+    return true
+end
+
+-- Our rows go where the game's own roll popups would be, as the player's UI has them. The game hangs its popups
+-- from GroupLootContainer, which sits on top of the bottom managed column (BottomManagedFrameContainer, above the
+-- action bars) unless a mover or an unlock mode of the player's UI has placed it elsewhere. Placed elsewhere: our
+-- rows grow up from its spot. In the column (or never laid out): from the top of the column. Both frames are only
+-- read, never changed; the place is looked up again for every roll, so a move in the UI is followed.
+local function Place()
+    prompt:ClearAllPoints()
+    local loot, col = _G.GroupLootContainer, _G.BottomManagedFrameContainer
+    if type(loot) == "table" and loot.GetPoint and loot.GetBottom then
+        local ok, point, rel = pcall(loot.GetPoint, loot, 1)
+        local okb, bottom = pcall(loot.GetBottom, loot)
+        if ok and okb and point and Readable(point, rel) and PlainNumber(bottom) and (col == nil or rel ~= col) then
+            prompt:SetPoint("BOTTOM", loot, "BOTTOM", 0, 0)
+            return
+        end
+    end
+    if type(col) == "table" and col.GetTop then
+        local ok, top = pcall(col.GetTop, col)
+        if ok and PlainNumber(top) then
+            prompt:SetPoint("BOTTOM", col, "TOP", 0, 4)
+            return
+        end
+    end
+    prompt:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, 200)
+end
+
 function Layout()
     if not prompt then
         return
     end
-    local win = ns.EnsureRollWindow and ns.EnsureRollWindow()
-    if not win or #entries == 0 then
+    if #entries == 0 then
         prompt:Hide()
         return
     end
-    prompt:SetScale(win:GetScale())
-    prompt:SetWidth(win:GetWidth())
-    prompt:ClearAllPoints()
-    -- above the roll window, or below it when the window sits near the top of the screen
-    local top, screen = win:GetTop(), UIParent:GetTop()
-    local below = top and screen and top * win:GetScale() > screen * 0.7
     local y = 0
     for i, e in ipairs(entries) do
         local row = e.row
         row:ClearAllPoints()
         row:SetPoint("LEFT", prompt, "LEFT")
         row:SetPoint("RIGHT", prompt, "RIGHT")
-        if below then
-            row:SetPoint("TOP", prompt, "TOP", 0, -y)
-        else
-            row:SetPoint("BOTTOM", prompt, "BOTTOM", 0, y)
-        end
+        row:SetPoint("BOTTOM", prompt, "BOTTOM", 0, y)
         y = y + ROW_H + (i < #entries and ROW_GAP or 0)
     end
     prompt:SetHeight(math.max(1, y))
-    if below then
-        prompt:SetPoint("TOPLEFT", win, "BOTTOMLEFT", 0, -4)
-    else
-        prompt:SetPoint("BOTTOMLEFT", win, "TOPLEFT", 0, 4)
-    end
+    Place()
     prompt:Show()
 end
 
@@ -352,7 +374,7 @@ local function BuildPrompt()
     end
     prompt = CreateFrame("Frame", "WhoWonThatRollButtons", UIParent)
     prompt:SetFrameStrata("HIGH")
-    prompt:SetSize(300, 1)
+    prompt:SetSize(PROMPT_W, 1)
     prompt:SetClampedToScreen(true)
     prompt:SetScript("OnUpdate", PromptTick)
     prompt:Hide()

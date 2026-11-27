@@ -134,6 +134,24 @@ return {
         t.eq(#me.errors, 0)
     end },
 
+    { "the roll buttons go where the player's UI has the game's roll popups", function(w, t)
+        local me = group(w)
+        local env = me.env
+        local column = me.makeFrame("Frame", "BottomManagedFrameContainer", env.UIParent)
+        local loot = me.makeFrame("Frame", "GroupLootContainer", column)
+        loot:SetPoint("TOP", column, "TOP", 0, 0) -- the game's own spot in the column
+        w:advance(0.1)
+        me.startRoll(13, EPIC, 60)
+        local _, rel = env.WhoWonThatRollButtons:GetPoint(1)
+        t.ok(rel == column, "the game's spot: on top of the bottom column")
+        me.endRoll(13)
+        loot:ClearAllPoints()
+        loot:SetPoint("CENTER", env.UIParent, "CENTER", 300, -100) -- moved by a mover of the player's UI
+        me.startRoll(14, EPIC, 60)
+        _, rel = env.WhoWonThatRollButtons:GetPoint(1)
+        t.ok(rel == loot, "where the player put it")
+    end },
+
     { "Need is refused when the game says this character cannot need", function(w, t)
         local me = group(w)
         w:advance(0.1)
