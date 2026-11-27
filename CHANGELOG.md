@@ -1,5 +1,9 @@
 # Changelog
 
+## 4.11.7
+
+- Fixed: players were listed twice on the roll window's board (once from the group, once with their surname from the loot history, e.g. "Monra" and "Monra Greytusk"). Each player now has one row with their wins and luck; the loot summary joins the two names in either order too.
+
 ## 4.11.6
 
 - On the Need / Greed / Pass rows the item's value now sits on the name's line at the right, clear of the countdown bar.

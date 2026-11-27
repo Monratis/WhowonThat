@@ -181,6 +181,23 @@ return {
         t.has(screen, "avg 20 · best 30") -- Monra
     end },
 
+    { "a character's surname from the loot history does not list the player twice on the board", function(w, t)
+        local me = w:addClient({ name = "Monra", surname = "Greytusk", class = "MAGE" })
+        local b = w:addClient({ name = "Anton", surname = "Paladin", class = "PALADIN" })
+        w:formGroup({ me, b }, "instance")
+        w:enterInstance({ me, b }, DUNGEON)
+        w:encounter(100, "Hogger")
+        w:drop(100, item(25, "Worn Shortsword")):roll("Anton", "need", 77):roll("Monra", "need", 20):finish("Anton")
+        w:advance(30)
+        local screen = World.screen(me)
+        t.has(screen, "Anton")
+        t.lacks(screen, "Paladin", "the surname is left out")
+        t.lacks(screen, "Greytusk")
+        t.eq(select(2, screen:gsub("Anton", "")), 1, "one row for Anton")
+        t.eq(select(2, screen:gsub("Monra", "")), 1, "one row for Monra")
+        t.has(screen, "avg 77")
+    end },
+
     { "an epic item gets the longer finale", function(w, t)
         local me = group(w)
         me.items[40] = { quality = 4 }

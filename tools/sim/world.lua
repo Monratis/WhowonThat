@@ -47,6 +47,7 @@ function World:addClient(spec)
     spec.savedVariables.frame = spec.savedVariables.frame or 3
     local c = Wow.new(spec)
     c.world = self
+    c.surname = spec.surname
     c.onSendChat = function(from, msg) self:deliverChat(from, msg) end
     c.onSendAddon = function(from, msg) self:deliverAddon(from, msg) end
     c.load(self.root)
@@ -187,7 +188,9 @@ function World:syncDrop(d, what, who, kind, value)
         for _, name in ipairs(d.order) do
             local r = d.rolls[name]
             local other = self.byName[name]
-            local info = { playerName = name .. "-" .. (other and other.realm or "Testrealm"):gsub("%s", ""),
+            -- WoW Forever's loot history adds the character's surname (spec.surname) that UnitName leaves out
+            local surname = other and other.surname and (" " .. other.surname) or ""
+            local info = { playerName = name .. surname .. "-" .. (other and other.realm or "Testrealm"):gsub("%s", ""),
                 playerGUID = name, playerClass = other and other.class or "WARRIOR", isSelf = (name == c.name),
                 state = r.state, roll = r.value, isWinner = (d.winner == name) }
             entry.rollInfos[#entry.rollInfos + 1] = info

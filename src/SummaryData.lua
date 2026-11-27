@@ -42,10 +42,15 @@ local function AddRosterName(run, full, class)
     local key = ShortName(full)
     local p = run.roster[key]
     if not p then
-        -- Loot history may write the realm after a space ("Name Realm") instead of a hyphen; if the first word is
-        -- already in the roster, it is the same player.
-        local first = key:match("^(%S+)%s")
-        p = first and run.roster[first] or nil
+        -- The loot history adds a surname or realm after a space ("Monra Greytusk") that UnitName leaves out: the
+        -- same first word is the same player, whichever of the two names came first.
+        local first = key:match("^(%S+)")
+        for k, e in pairs(run.roster) do
+            if k:match("^(%S+)") == first then
+                p = e
+                break
+            end
+        end
     end
     if not p then
         if run.rosterCount >= SUMMARY_MAX_PLAYERS then

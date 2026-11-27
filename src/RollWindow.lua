@@ -11,7 +11,7 @@ local _, ns = ...
 local L = ns.L
 local ART, CanClassUse, ClassColor, MarkCantUse = ns.ART, ns.CanClassUse, ns.ClassColor, ns.MarkCantUse
 local PlainNumber, ROLL_STATE, STATE_INFO, SetClassColor = ns.PlainNumber, ns.ROLL_STATE, ns.STATE_INFO, ns.SetClassColor
-local SetClassIcon, ShortName, StyleItemBorder, Theme = ns.SetClassIcon, ns.ShortName, ns.StyleItemBorder, ns.Theme
+local SetClassIcon, StyleItemBorder, Theme = ns.SetClassIcon, ns.StyleItemBorder, ns.Theme
 local TrySetFile, UsableName, Gradient = ns.TrySetFile, ns.UsableName, ns.Gradient
 local RollFX = ns.RollFX
 
@@ -122,6 +122,14 @@ local function Sound(name)
     if id and PlaySound then
         pcall(PlaySound, id)
     end
+end
+
+-- One player, one name: WoW Forever characters carry a surname that the loot history adds ("Monra Greytusk") but
+-- UnitName leaves out ("Monra"), and other realms add "-Realm". The first word is the name shown and the key that
+-- joins the group, the rolls, the wins and the luck of one player.
+local function ShortName(full)
+    local name = ns.ShortName(full)
+    return name:match("^(%S+)") or name
 end
 
 local function Hex(r, g, b)
