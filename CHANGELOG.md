@@ -1,5 +1,9 @@
 # Changelog
 
+## 4.11.8
+
+- In a dungeon or raid, `/wwt` and the minimap button open the roll window (the board between rolls); elsewhere they open the settings as before. New `/wwt options` opens the settings anywhere.
+
 ## 4.11.7
 
 - Fixed: players were listed twice on the roll window's board (once from the group, once with their surname from the loot history, e.g. "Monra" and "Monra Greytusk"). Each player now has one row with their wins and luck; the loot summary joins the two names in either order too.

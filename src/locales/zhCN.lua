@@ -38,7 +38,8 @@ ns.locales.zhCN = {
     lang_reload = "语言已更改。输入 /reload 使其在所有地方生效。",
 
     help_settings = "设置：Esc > 选项 > 插件 > Who Won That",
-    help_open = "/wwt - 打开设置面板",
+    help_open = "/wwt - 在地下城或团队副本中打开掷骰窗口，其他情况打开设置（小地图按钮相同）",
+    help_options = "/wwt options - 打开设置",
     help_help = "/wwt help - 显示此帮助",
     help_test = "/wwt test - 检查是否能识别游戏的掷骰消息，并显示示例窗口",
     help_welcome = "/wwt welcome - 再次显示首次运行的介绍",

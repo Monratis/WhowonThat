@@ -38,7 +38,8 @@ ns.locales.koKR = {
     lang_reload = "언어가 변경되었습니다. /reload를 입력하면 모든 곳에 적용됩니다.",
 
     help_settings = "설정: Esc > 설정 > 애드온 > Who Won That",
-    help_open = "/wwt - 설정 창 열기",
+    help_open = "/wwt - 던전이나 공격대에서는 주사위 창, 그 밖에는 설정 창 (미니맵 버튼도 동일)",
+    help_options = "/wwt options - 설정 창 열기",
     help_help = "/wwt help - 이 도움말 표시",
     help_test = "/wwt test - 게임의 주사위 메시지를 인식하는지 확인하고 예시 창을 표시",
     help_welcome = "/wwt welcome - 처음 실행 안내 다시 보기",

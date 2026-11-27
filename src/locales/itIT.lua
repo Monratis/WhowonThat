@@ -38,7 +38,8 @@ ns.locales.itIT = {
     lang_reload = "Lingua cambiata. Digita /reload per applicarla ovunque.",
 
     help_settings = "Impostazioni: Esc > Opzioni > AddOn > Who Won That",
-    help_open = "/wwt - apri il pannello delle impostazioni",
+    help_open = "/wwt - in spedizione o incursione: la finestra dei tiri; altrove: le opzioni (il pulsante della minimappa uguale)",
+    help_options = "/wwt options - apre le opzioni",
     help_help = "/wwt help - mostra questo aiuto",
     help_test = "/wwt test - controlla che i messaggi dei tiri del gioco vengano riconosciuti e mostra le finestre di esempio",
     help_welcome = "/wwt welcome - mostra di nuovo l'introduzione del primo avvio",

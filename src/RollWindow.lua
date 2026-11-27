@@ -2352,13 +2352,9 @@ local function SetEnabled(on)
     end
 end
 
--- /wwt window
-local function Toggle()
+-- Brings the window up and keeps it up (the board between rolls): /wwt and the minimap button in a dungeon or raid.
+local function Open()
     if not EnsureWindow() then
-        return
-    end
-    if win:IsShown() and not win.placing then
-        Close()
         return
     end
     userClosed, pinned = nil, true
@@ -2373,6 +2369,15 @@ local function Toggle()
         RenderBoard()
     end
     ShowWindow()
+end
+
+-- /wwt window
+local function Toggle()
+    if EnsureWindow() and win:IsShown() and not win.placing then
+        Close()
+    else
+        Open()
+    end
 end
 
 local function ResetPos()
@@ -2499,7 +2504,7 @@ end
 -- ===== shared with the other files =====
 ns.RollWindow = {
     OnProgress = OnProgress, OnFinished = OnFinished, OnStartRoll = OnStartRoll, OnRollGone = OnRollGone, OnZone = OnZone,
-    SetEnabled = SetEnabled, Toggle = Toggle, ResetPos = ResetPos, Demo = Demo,
+    SetEnabled = SetEnabled, Open = Open, Toggle = Toggle, ResetPos = ResetPos, Demo = Demo,
 }
 -- used by Movers.lua
 ns.EnsureRollWindow, ns.RollWindowPreview, ns.PlaceRollWindow = EnsureWindow, Preview, Place

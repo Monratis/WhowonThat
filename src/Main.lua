@@ -54,7 +54,7 @@ f:SetScript("OnEvent", function(_, event, arg1, arg2, arg3, arg4, arg5)
     elseif event == "PLAYER_LOGIN" then
         f:UnregisterEvent("PLAYER_LOGIN")
         if AddonCompartmentFrame and AddonCompartmentFrame.RegisterAddon then
-            -- entry in the minimap addon menu: one click opens the settings
+            -- entry in the minimap addon menu: like /wwt, the roll window in a dungeon or raid, else the settings
             AddonCompartmentFrame:RegisterAddon({
                 text = "Who Won That",
                 icon = "Interface/AddOns/WhoWonThat/icon.tga",

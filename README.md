@@ -30,7 +30,7 @@ Made for **WoW Forever** (Midnight engine, Interface `16001`). No other addon ne
 - **Dungeon loot summary:** when a dungeon ends, a small pop-up shows the top winners; click it to open a window that lists who got which items (hover for the tooltip, Shift-click to link, "Details" for the rolls). Choose Everyone / Only my items / Off in the options; `/wwt summary` reopens it.
 - **Item values (optional):** with a price addon (Auctionator, TradeSkillMaster or Booty Bay Broker), the loot summary shows each item's auction value in its tooltip and the total at the bottom. Items worth less than a limit you set (default 20 silver) are left out of the roll window and group announcements.
 - **Works with other addons when installed:** Auctionator, TradeSkillMaster, Booty Bay Broker (prices), GearQuest Forever (item stats for the ninja loot check), EllesmereUI / ElvUI / TukUI (the roll window's look). Nothing is needed for the addon to work.
-- Commands: `/wwt` settings, `/wwt window` show / hide the roll window (`/wwt window reset` puts it back above the chat), `/wwt demo [poor..legendary] [win]` sample roll in the roll window, `/wwt test` checks roll message recognition and shows the sample windows, `/wwt summary` last dungeon summary, `/wwt help`.
+- Commands: `/wwt` (or the minimap button) the roll window in a dungeon or raid and the settings elsewhere, `/wwt options` settings, `/wwt window` show / hide the roll window (`/wwt window reset` puts it back above the chat), `/wwt demo [poor..legendary] [win]` sample roll in the roll window, `/wwt test` checks roll message recognition and shows the sample windows, `/wwt summary` last dungeon summary, `/wwt help`.
 
 ## Development
 

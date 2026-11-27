@@ -38,7 +38,8 @@ ns.locales.zhTW = {
     lang_reload = "語言已變更。輸入 /reload 使其在所有地方生效。",
 
     help_settings = "設定：Esc > 選項 > 插件 > Who Won That",
-    help_open = "/wwt - 開啟設定面板",
+    help_open = "/wwt - 在地城或團隊副本中開啟擲骰視窗，其他情況開啟設定（小地圖按鈕相同）",
+    help_options = "/wwt options - 開啟設定",
     help_help = "/wwt help - 顯示此說明",
     help_test = "/wwt test - 檢查是否能識別遊戲的擲骰訊息，並顯示範例視窗",
     help_welcome = "/wwt welcome - 再次顯示首次執行的介紹",

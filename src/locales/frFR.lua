@@ -38,7 +38,8 @@ ns.locales.frFR = {
     lang_reload = "Langue modifiée. Tapez /reload pour l'appliquer partout.",
 
     help_settings = "Paramètres : Échap > Options > AddOns > Who Won That",
-    help_open = "/wwt - ouvrir le panneau des paramètres",
+    help_open = "/wwt - en donjon ou en raid : la fenêtre des jets ; ailleurs : les options (le bouton de la minicarte aussi)",
+    help_options = "/wwt options - ouvrir les options",
     help_help = "/wwt help - afficher cette aide",
     help_test = "/wwt test - vérifie que les messages de jets du jeu sont reconnus et affiche les fenêtres d'exemple",
     help_welcome = "/wwt welcome - afficher de nouveau l'introduction du premier lancement",

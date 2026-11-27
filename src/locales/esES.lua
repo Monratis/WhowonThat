@@ -38,7 +38,8 @@ ns.locales.esES = {
     lang_reload = "Idioma cambiado. Escribe /reload para aplicarlo en todas partes.",
 
     help_settings = "Configuración: Esc > Opciones > AddOns > Who Won That",
-    help_open = "/wwt - abrir el panel de configuración",
+    help_open = "/wwt - en mazmorra o banda: la ventana de tiradas; fuera: las opciones (el botón del minimapa igual)",
+    help_options = "/wwt options - abrir las opciones",
     help_help = "/wwt help - mostrar esta ayuda",
     help_test = "/wwt test - comprueba que se reconocen los mensajes de tiradas del juego y muestra las ventanas de ejemplo",
     help_welcome = "/wwt welcome - mostrar de nuevo la introducción del primer uso",

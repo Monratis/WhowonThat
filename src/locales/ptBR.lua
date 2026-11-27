@@ -38,7 +38,8 @@ ns.locales.ptBR = {
     lang_reload = "Idioma alterado. Digite /reload para aplicá-lo em todo lugar.",
 
     help_settings = "Configurações: Esc > Opções > AddOns > Who Won That",
-    help_open = "/wwt - abrir o painel de configurações",
+    help_open = "/wwt - em masmorra ou raide: a janela de rolagens; fora: as opções (o botão do minimapa também)",
+    help_options = "/wwt options - abre as opções",
     help_help = "/wwt help - mostrar esta ajuda",
     help_test = "/wwt test - verifica se as mensagens de rolagem do jogo são reconhecidas e mostra as janelas de exemplo",
     help_welcome = "/wwt welcome - mostrar de novo a introdução da primeira execução",

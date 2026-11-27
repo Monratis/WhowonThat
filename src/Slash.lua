@@ -8,6 +8,7 @@ local SummaryCall = ns.SummaryCall
 local function Help()
     Print(L("help_settings"))
     Print(L("help_open"))
+    Print(L("help_options"))
     Print(L("help_help"))
     Print(L("help_test"))
     Print(L("help_welcome"))
@@ -99,8 +100,11 @@ end
 
 local function HandleSlash(input)
     local cmd = ((input or ""):match("^%s*(%S*)") or ""):lower()
-    if cmd == "" then
-        -- plain /wwt opens the settings panel
+    if cmd == "" and ns.db.rollWindow ~= false and ns.InstanceRunInfo() then
+        -- plain /wwt (and the minimap button) in a dungeon or raid: the roll window, where the loot is
+        SummaryCall(ns.RollWindow.Open)
+    elseif cmd == "" or cmd == "options" or cmd == "config" then
+        -- elsewhere, and /wwt options anywhere: the settings panel
         if not OpenPanel() then
             Print(L("no_panel"))
         end

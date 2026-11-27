@@ -40,7 +40,8 @@ ns.locales.enUS = {
 
     -- slash commands, welcome, test
     help_settings = "Settings: Esc > Options > AddOns > Who Won That",
-    help_open = "/wwt - open the settings panel",
+    help_open = "/wwt - in a dungeon or raid: the roll window; elsewhere: the settings panel (the minimap button does the same)",
+    help_options = "/wwt options - open the settings panel",
     help_help = "/wwt help - show this help",
     help_test = "/wwt test - check that the game's roll messages are recognized and show the sample windows",
     help_welcome = "/wwt welcome - show the first-run introduction again",

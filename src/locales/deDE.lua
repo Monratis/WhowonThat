@@ -38,7 +38,8 @@ ns.locales.deDE = {
     lang_reload = "Sprache geändert. Gib /reload ein, um sie überall zu übernehmen.",
 
     help_settings = "Einstellungen: Esc > Optionen > AddOns > Who Won That",
-    help_open = "/wwt - Einstellungen öffnen",
+    help_open = "/wwt - in Dungeon oder Schlachtzug: das Würfelfenster; sonst: die Einstellungen (der Minikarten-Knopf ebenso)",
+    help_options = "/wwt options - die Einstellungen öffnen",
     help_help = "/wwt help - diese Hilfe anzeigen",
     help_test = "/wwt test - prüft, ob die Würfelmeldungen des Spiels erkannt werden, und zeigt die Beispielfenster",
     help_welcome = "/wwt welcome - die Einführung vom ersten Start erneut anzeigen",

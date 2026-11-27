@@ -67,6 +67,19 @@ return {
         t.eq(#me.errors, 0)
     end },
 
+    { "/wwt in a dungeon opens the roll window, elsewhere the settings; /wwt options always the settings", function(w, t)
+        local me = group(w)
+        w:advance(1)
+        me.slash("/wwt")
+        t.ok(shown(me, "WhoWonThatRollWindow"), "the roll window in the dungeon")
+        me.slash("/wwt")
+        t.ok(shown(me, "WhoWonThatRollWindow"), "a second /wwt keeps it open")
+        local alone = w:addClient({ name = "Solo", class = "MAGE" })
+        alone.slash("/wwt")
+        t.ok(not shown(alone, "WhoWonThatRollWindow"), "outside a dungeon: no roll window")
+        t.eq(#me.errors + #alone.errors, 0)
+    end },
+
     { "a legendary you win: the window says so and the addon's toast shows it", function(w, t)
         local me = group(w)
         me.slash("/wwt demo legendary win")
