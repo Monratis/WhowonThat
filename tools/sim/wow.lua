@@ -176,7 +176,8 @@ function Wow.new(opts)
     }
     for ev in ([[ADDON_LOADED PLAYER_LOGIN PLAYER_ENTERING_WORLD ZONE_CHANGED_NEW_AREA ENCOUNTER_END BOSS_KILL CHAT_MSG_COMBAT_HOSTILE_DEATH
         LFG_COMPLETION_REWARD CHALLENGE_MODE_COMPLETED SCENARIO_COMPLETED GROUP_ROSTER_UPDATE
-        LOOT_HISTORY_UPDATE_DROP CHAT_MSG_LOOT CHAT_MSG_ADDON START_LOOT_ROLL GET_ITEM_INFO_RECEIVED]]):gmatch("%S+") do
+        LOOT_HISTORY_UPDATE_DROP CHAT_MSG_LOOT CHAT_MSG_ADDON START_LOOT_ROLL GET_ITEM_INFO_RECEIVED
+        CANCEL_LOOT_ROLL CANCEL_ALL_LOOT_ROLLS LOOT_ITEM_ROLL_WON]]):gmatch("%S+") do
         client.knownEvents[ev] = true
     end
     for _, ev in ipairs(opts.unknownEvents or {}) do client.knownEvents[ev] = nil end
@@ -401,7 +402,40 @@ function Wow.new(opts)
         return e.name, "", e.id, 0, 0, journalID, e.id
     end
     env.EJ_SelectInstance = function() end
-    env.GetActiveLootRollIDs = function() return client.activeRolls or {} end
+    -- ----- open loot rolls (the game's roll frame): client.startRoll(id, link, seconds, opts) opens one -----
+    client.lootRolls, client.rolledOn, client.closedEvents = {}, {}, {}
+    -- the game's internal event router (it opens the roll popups from START_LOOT_ROLL)
+    env.GameEvent = { UnregisterInternalEvent = function(ev) client.closedEvents[ev] = true end }
+    env.GetActiveLootRollIDs = function()
+        local ids = {}
+        for _, id in ipairs(client.activeRolls or {}) do ids[#ids + 1] = id end
+        for id in pairs(client.lootRolls) do ids[#ids + 1] = id end
+        table.sort(ids)
+        return ids
+    end
+    env.GetLootRollItemLink = function(id) local r = client.lootRolls[id]; return r and r.link end
+    env.GetLootRollItemInfo = function(id)
+        local r = client.lootRolls[id]
+        if not r then return nil end
+        return r.icon or 134400, r.link:match("%[(.-)%]"), 1, r.quality or 2, r.bop == true, r.canNeed ~= false,
+            r.canGreed ~= false, r.canDE == true, r.canNeed == false and 1 or 0, 0, 0, 0, false
+    end
+    env.GetLootRollTimeLeft = function(id)
+        local r = client.lootRolls[id]
+        return r and math.max(0, (r.endsAt - client.now) * 1000) or 0
+    end
+    env.RollOnLoot = function(id, kind) client.rolledOn[#client.rolledOn + 1] = { id = id, kind = kind } end
+    env.ConfirmLootRoll = function() end
+    function client.startRoll(id, link, seconds, o)
+        local r = o or {}
+        r.link, r.endsAt = link, client.now + (seconds or 60)
+        client.lootRolls[id] = r
+        client.fire("START_LOOT_ROLL", id, (seconds or 60) * 1000)
+    end
+    function client.endRoll(id)
+        client.lootRolls[id] = nil
+        client.fire("CANCEL_LOOT_ROLL", id)
+    end
 
     -- ----- items -----
     -- client.items[itemID] = { icon=, classID=, subClassID=, equipLoc=, stats={...} } (set by tests; default: unknown)

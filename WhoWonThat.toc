@@ -14,7 +14,7 @@
 ## OptionalDeps: Auctionator, TradeSkillMaster, BootyBayBroker, GearQuest, EllesmereUI, ElvUI, Tukui
 ## IconTexture: Interface/AddOns/WhoWonThat/icon.tga
 ## Author: Monratis
-## Version: 4.10.3
+## Version: 4.11.0
 ## X-Curse-Project-ID: 1807384
 ## X-Website: https://github.com/Monratis/WhowonThat
 ## SavedVariables: WhoWonThatDB
@@ -40,7 +40,9 @@ src/SummaryWidgets.lua
 src/SummaryWindow.lua
 src/SummaryButton.lua
 src/Theme.lua
+src/RollFX.lua
 src/RollWindow.lua
+src/LootFrames.lua
 src/Movers.lua
 src/DungeonBook.lua
 src/SummaryEnd.lua

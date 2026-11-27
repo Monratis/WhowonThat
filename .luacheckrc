@@ -40,6 +40,12 @@ globals = {
 
     -- Modern WoW APIs
     "C_LootHistory",
+    "GetLootRollItemInfo",
+    "GetLootRollItemLink",
+    "GetLootRollTimeLeft",
+    "RollOnLoot",
+    "ConfirmLootRoll",
+    "GameEvent",
     "C_Timer",
 
     -- SavedVariables

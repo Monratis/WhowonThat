@@ -145,6 +145,7 @@ local function RegisterPanel()
     Header(L("hdr_window"))
     AddBool("rollWindow", L("window_opt"), L("window_opt_tip"), function()
         SummaryCall(ns.RollWindow.SetEnabled, ns.db.rollWindow)
+        SummaryCall(ns.LootFrames.Apply) -- the roll buttons and the toast need the roll window
     end)
     -- how long a result stays before the window fades away (0 = never)
     if Settings.CreateSlider and Settings.CreateSliderOptions then
@@ -160,6 +161,12 @@ local function RegisterPanel()
         Settings.CreateSlider(category, fadeSetting, options, L("rw_fade_tip"))
     end
     AddBool("chatLine", L("chat_line_opt"), L("chat_line_opt_tip"))
+    AddBool("rollButtons", L("rb_opt"), L("rb_opt_tip"), function()
+        SummaryCall(ns.LootFrames.Apply)
+    end)
+    AddBool("wonToast", L("toast_opt"), L("toast_opt_tip"), function()
+        SummaryCall(ns.LootFrames.Apply)
+    end)
 
     -- ===== Group chat =====
     Header(L("hdr_group"))

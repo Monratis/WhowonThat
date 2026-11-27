@@ -117,7 +117,7 @@ local function HandleSlash(input)
             SummaryCall(ns.RollWindow.Toggle)
         end
     elseif cmd == "demo" then
-        SummaryCall(ns.RollWindow.Demo)
+        SummaryCall(ns.RollWindow.Demo, (input or ""):match("^%s*%S+%s+(.-)%s*$")) -- e.g. "legendary win"
     elseif cmd == "price" then
         local link = (input or ""):match("(|c[^|]*|Hitem:.-|h%[.-%]|h|r)") or (input or ""):match("(|Hitem:.-|h%[.-%]|h)")
         if not link then

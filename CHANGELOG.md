@@ -1,5 +1,15 @@
 # Changelog
 
+## 4.11.0
+
+- Rarer items get a bigger finale, always in the item's own quality color and without flashing: grey and white stay quiet, green sends a light over the winner and a few motes, blue a thin ring from the icon, purple dims the rest of the window while the last number spins and blooms behind the icon, and a legendary fades its name in, lets embers drift up and leaves slow rays behind the icon.
+- With a price addon the auction house value shows in the roll window and counts up after the win; an item worth 100 gold or more gets the finale of the next rarity, 500 gold or more at least the epic one.
+- The roll window opens the moment a roll starts, with your group waiting, and the numbers start spinning as soon as a player chooses.
+- Need, Greed, Disenchant and Pass right at the roll window, in place of the game's roll popups (can be turned off; that takes a /reload). The addon stays out of the way when EllesmereUI's or ElvUI's own roll list is on, and under the Gamepad interface style.
+- When you win, the addon shows its own loot toast in the item's rarity look once the numbers have landed, in place of the game's toast for that item (can be turned off).
+- You hear the win sound when you win, a different one when you rolled and lost, and the coin when you were not in the roll.
+- `/wwt demo` takes a quality and `win`, e.g. `/wwt demo legendary win`.
+
 ## 4.10.3
 
 - Roll bars are in each player's class color, in a deep shade so the class-colored name on top stays easy to read.

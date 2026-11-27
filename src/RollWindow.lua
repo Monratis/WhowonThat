@@ -13,6 +13,7 @@ local ART, CanClassUse, ClassColor, MarkCantUse = ns.ART, ns.CanClassUse, ns.Cla
 local PlainNumber, ROLL_STATE, STATE_INFO, SetClassColor = ns.PlainNumber, ns.ROLL_STATE, ns.STATE_INFO, ns.SetClassColor
 local SetClassIcon, ShortName, StyleItemBorder, Theme = ns.SetClassIcon, ns.ShortName, ns.StyleItemBorder, ns.Theme
 local TrySetFile, UsableName, Gradient = ns.TrySetFile, ns.UsableName, ns.Gradient
+local RollFX = ns.RollFX
 
 local WINDOW_NAME = "WhoWonThatRollWindow"
 local PAD = 8
@@ -29,16 +30,14 @@ local BOARD_ROW_H = 34       -- name over the luck line, item icons beside them
 local TILE, TILE_GAP = 20, 4
 local NAME_COL_MIN, NAME_COL_MAX = 104, 160 -- class icon + name column of the board (grows with the width)
 local MAX_BOARD_ROWS = 12
-local SPIN = 1.1            -- seconds a number spins before it lands
-local SUSPENSE_SPIN = 2.1   -- the deciding (last) number spins longer, its row pulsing
-local EPIC_SPIN = 2.8       -- ... and longer still for an epic or better item
-local EPIC_HOLD = 2         -- extra seconds an epic result stays on screen
+local SPIN = 0.8            -- seconds a number spins before it lands (it has been spinning since the player chose)
+-- the deciding (last) number spins longer, its row pulsing: how long depends on the item (src/RollFX.lua)
 local MISSED_BY = 5         -- you lost by this many points or less: the window tells you
 local LUCK_MIN_ROLLS = 3    -- rolls a player needs before the lucky / unlucky badge can go to them
 local PHOTO_FINISH = 3      -- a win by this many points or less is called a photo finish
-local REVEAL_GAP = 0.6      -- seconds between two numbers landing (weakest first, the best one last)
+local REVEAL_GAP = 0.4      -- seconds between two numbers landing (weakest first, the best one last)
 local FAST_GAP = 0.25       -- the same while more drops are waiting
-local CELEBRATE_DELAY = 0.4
+local CELEBRATE_DELAY = 0.25
 local HOLD_BUSY = 2.5      -- seconds a result stays while more drops are waiting (otherwise the fade setting)
 local HOLD_NO_FADE = 10     -- with fading turned off: seconds the result stays before the board takes over
 local STALE_DROP = 300      -- a roll that never finishes is given up after this many seconds
@@ -78,6 +77,8 @@ local history = {}      -- finished drops the chat lines point to, oldest first
 local fonts = {}        -- { fontString, size, outline } so a later UI skin can re-font everything
 
 local Advance, Idle, RenderRoll, RenderBoard, Retire, StartAnimating
+local Rarity = {} -- rarity effects of the drop on screen (src/RollFX.lua decides which ones an item gets)
+local Early = {}  -- a roll shown from its very start: the window opens at START_LOOT_ROLL, reels spin at once
 
 local function Enabled()
     return ns.db ~= nil and ns.db.rollWindow ~= false
@@ -144,12 +145,6 @@ local function ItemLabel(link)
     return link:match("%[(.-)%]") or link
 end
 
--- quality number (0 poor .. 5 legendary) and its color, known from the link even before the item is cached
-local function Quality(link)
-    local r, g, b, q = ns.ItemQualityColorRaw(link)
-    return q, r, g, b
-end
-
 -- "Plate · Head · Item Level 45" from the client's own (translated) names; empty while the item is not cached yet
 local function ItemDetails(link)
     local getInfo = (C_Item and C_Item.GetItemInfo) or GetItemInfo
@@ -175,73 +170,8 @@ local function ItemDetails(link)
     return table.concat(parts, ns.SUMMARY_DOT)
 end
 
--- ===== animation helpers (every one is optional: a client without an animation type just skips it) =====
-local function NewAnim(region)
-    if not region.CreateAnimationGroup then
-        return nil
-    end
-    local ok, g = pcall(region.CreateAnimationGroup, region)
-    return ok and g or nil
-end
-
-local function AddAnim(g, kind, duration)
-    local ok, a = pcall(g.CreateAnimation, g, kind)
-    if not ok or not a then
-        return nil
-    end
-    a:SetDuration(duration)
-    if a.SetSmoothing then
-        pcall(a.SetSmoothing, a, "OUT")
-    end
-    return a
-end
-
-local function ScaleBetween(a, from, to)
-    if a and a.SetScaleFrom and a.SetScaleTo then
-        a:SetScaleFrom(from, from)
-        a:SetScaleTo(to, to)
-    end
-end
-
--- grows in from `from` times its size while fading in
-local function MakePop(region, from, duration)
-    local g = NewAnim(region)
-    if not g then
-        return nil
-    end
-    ScaleBetween(AddAnim(g, "Scale", duration), from, 1)
-    local a = AddAnim(g, "Alpha", duration * 0.6)
-    if a then
-        a:SetFromAlpha(0)
-        a:SetToAlpha(1)
-    end
-    return g
-end
-
--- a region resting invisible that lights up and fades out
-local function MakeFlash(region, peak, duration, scaleFrom, scaleTo)
-    region:SetAlpha(0)
-    local g = NewAnim(region)
-    if not g then
-        return nil
-    end
-    local a = AddAnim(g, "Alpha", duration)
-    if a then
-        a:SetFromAlpha(peak)
-        a:SetToAlpha(0)
-    end
-    if scaleFrom then
-        ScaleBetween(AddAnim(g, "Scale", duration), scaleFrom, scaleTo)
-    end
-    return g
-end
-
-local function Play(g)
-    if g then
-        g:Stop()
-        g:Play()
-    end
-end
+-- ===== animation helpers (src/RollFX.lua) =====
+local NewAnim, AddAnim, MakePop, MakeFlash, Play = ns.Anim.New, ns.Anim.Add, ns.Anim.MakePop, ns.Anim.MakeFlash, ns.Anim.Play
 
 -- ===== widgets =====
 local function Text(parent, size, outline)
@@ -314,6 +244,9 @@ local function MakeRollRow()
     row.fx = row:CreateTexture(nil, "BORDER", nil, 2) -- the class effect that plays over a bar when it lands
     row.fx:SetBlendMode("ADD")
     row.fx:Hide()
+    row.sweep = row:CreateTexture(nil, "BORDER", nil, 3) -- light running once over the winner's row (uncommon and up)
+    row.sweep:SetBlendMode("ADD")
+    row.sweep:Hide()
     row.edge = row:CreateTexture(nil, "ARTWORK")
     row.edge:SetWidth(2)
     row.edge:SetPoint("TOPLEFT")
@@ -525,7 +458,7 @@ local function ApplyWidth(w)
     win:SetWidth(W)
     local rp, bp = win.rollPane, win.boardPane
     rp.name:SetWidth(INNER - ICON - 8 - 44)
-    rp.details:SetWidth(INNER - ICON - 8 - 8)
+    rp.details:SetWidth(INNER - ICON - 8 - 50)
     rp.status:SetWidth(INNER - ICON - 8 - 8)
     rp.qglow:SetWidth(math.floor(W * 0.8))
     rp.timerBg:SetWidth(INNER)
@@ -655,6 +588,17 @@ local function BuildRollPane(rp)
         rp.burst:SetColorTexture(1, 1, 1, 0.4)
     end
     rp.burstAnim = MakeFlash(rp.burst, 1, 0.9, 0.5, 1.6)
+    -- rare and up: the icon glows softly in its quality color; thin rings leave it at the win; legendary: slow rays
+    rp.iconGlow = rp:CreateTexture(nil, "ARTWORK", nil, -1)
+    rp.iconGlow:SetSize(ICON * 1.9, ICON * 1.9)
+    rp.iconGlow:SetPoint("CENTER", rp.item, "CENTER")
+    rp.iconGlow.ok = TrySetFile(rp.iconGlow, ART.glow)
+    if rp.iconGlow.ok then
+        rp.iconGlow:SetBlendMode("ADD")
+    end
+    rp.iconGlow:Hide()
+    rp.rings = RollFX.NewRings(rp, rp.item, 3, ICON * 1.5)
+    rp.rays = RollFX.NewRays(rp, rp.item, 150)
     rp.name = Text(rp, 13)
     rp.name:SetPoint("TOPLEFT", rp.item, "TOPRIGHT", 8, -1)
     rp.name:SetJustifyH("LEFT")
@@ -666,6 +610,9 @@ local function BuildRollPane(rp)
     rp.status:SetJustifyH("LEFT")
     rp.queue = Text(rp, 10)
     rp.queue:SetPoint("TOPRIGHT", rp, "TOPRIGHT", -28, -11)
+    rp.value = Text(rp, 10) -- the auction house value, when a price addon knows the item
+    rp.value:SetPoint("TOPRIGHT", rp, "TOPRIGHT", -10, -26)
+    rp.value:SetJustifyH("RIGHT")
     rp.timerBg = rp:CreateTexture(nil, "ARTWORK")
     rp.timerBg:SetPoint("TOPLEFT", PAD, -(ROLL_HEAD - 7))
     rp.timerBg:SetSize(INNER, 3)
@@ -846,6 +793,8 @@ local function BuildWindow()
     BuildRollPane(f.rollPane)
     BuildBoardPane(f.boardPane)
     f.sparks = MakeSparks(f.rollPane)
+    f.motes = RollFX.NewEmitter(f.rollPane, 32)
+    f.edge = RollFX.NewEdge(f)
     f.rollPane:Hide()
     f.boardPane:Hide()
 
@@ -1171,12 +1120,28 @@ local function StatusText(d)
     return "|cffffffff" .. L("rw_rolling") .. "|r " .. MyPosition(d)
 end
 
+-- A player who chose Need or Greed but whose number the game has not given yet: the reel already spins (dimmed),
+-- so the roll is under way from the first pick instead of waiting for the end.
+function Early.IdleSpin(p, d)
+    return not d.done and p.st ~= nil and p.st.kind ~= "pass" and not p.out and not p.roll and not p.revealAt
+end
+
+-- The auction house value in the header; `frac` < 1 while it counts up after the win.
+function Rarity.ValueText(look, frac)
+    if not look.price then
+        return ""
+    end
+    local color = look.band >= 1 and "|cffd9b56a" or MUTED
+    return color .. ns.FormatMoney(math.floor(look.price * frac / 100) * 100) .. "|r"
+end
+
 local function PaintRollRow(row, p, d, leader, index)
     local st = p.st
     local passed = st and (st.kind == "pass" or p.out) -- a pass, or a Greed that cannot win against a Need
     local isWinner = d.celebrated and d.winner == p and not d.allPassed
     local ar, ag, ab = Theme.Accent()
-    row:SetAlpha(passed and 0.45 or 1)
+    local dimmed = d.suspenseOn and d.look and d.look.tier.dim and not (p.suspense and not p.shown)
+    row:SetAlpha(passed and 0.45 or (dimmed and 0.5) or 1)
     if p.isSelf then
         row.bg:SetColorTexture(ar, ag, ab, 0.07)
     else
@@ -1239,6 +1204,9 @@ local function PaintRollRow(row, p, d, leader, index)
         row.num:SetText("?") -- the spin itself is drawn by the OnUpdate animation
         row.num:SetTextColor(0.85, 0.85, 0.85)
         row.fill:SetWidth(1)
+    elseif Early.IdleSpin(p, d) then
+        row.num:SetText(math.random(1, 100)) -- the OnUpdate animation keeps it turning
+        row.num:SetTextColor(0.5, 0.5, 0.5)
     elseif st then
         row.num:SetText(d.done and "-" or "?")
         row.num:SetTextColor(0.55, 0.55, 0.55)
@@ -1246,10 +1214,14 @@ local function PaintRollRow(row, p, d, leader, index)
         row.num:SetText(DOTS[3])
         row.num:SetTextColor(0.55, 0.55, 0.55)
     end
+    local mr, mg, mb = ar, ag, ab
+    if isWinner and d.look and d.look.tier.mark then
+        mr, mg, mb = d.look.fr, d.look.fg, d.look.fb -- rare and up: the winner is marked in the quality color
+    end
     row.edge:SetShown(isWinner or (leader == p and not d.celebrated))
-    row.edge:SetColorTexture(ar, ag, ab, 0.9)
+    row.edge:SetColorTexture(mr, mg, mb, 0.9)
     if isWinner then
-        Gradient(row.glow, "HORIZONTAL", ar, ag, ab, 0.35, ar, ag, ab, 0)
+        Gradient(row.glow, "HORIZONTAL", mr, mg, mb, 0.35, mr, mg, mb, 0)
         row.glow:Show()
     else
         row.glow:Hide()
@@ -1264,12 +1236,27 @@ function RenderRoll()
     local rp = win.rollPane
     SetSlotItem(rp.item, d.item)
     rp.name:SetText(ItemLabel(d.item))
-    rp.details:SetText(MUTED .. ItemDetails(d.item) .. "|r")
+    local look = RollFX.Look(d.item)
+    d.look = look
+    local tier = look.tier
+    local quality = ""
+    if look.quality >= 5 then -- a legendary says so above everything else
+        local word = _G.ITEM_QUALITY5_DESC
+        quality = Hex(look.r, look.g, look.b) .. (type(word) == "string" and word or "Legendary") .. "|r  "
+    end
+    rp.details:SetText(quality .. MUTED .. ItemDetails(d.item) .. "|r")
     rp.status:SetText(StatusText(d))
-    local q, qr, qg, qb = Quality(d.item)
-    d.epic = q ~= nil and q >= 4
-    rp.qcolor = { qr, qg, qb }
-    Gradient(rp.qglow, "HORIZONTAL", qr, qg, qb, d.epic and 0.30 or 0.16, qr, qg, qb, 0)
+    Gradient(rp.qglow, "HORIZONTAL", look.r, look.g, look.b, tier.wash, look.r, look.g, look.b, 0)
+    rp.iconGlow:SetShown(rp.iconGlow.ok and tier.iconGlow == true)
+    rp.iconGlow:SetVertexColor(look.r, look.g, look.b, 0.45)
+    if tier.reveal and not d.nameFadeAt and not d.celebrated then
+        d.nameFadeAt = GetTime() -- the name of a legendary fades in slowly
+    elseif not d.nameFadeAt then
+        rp.name:SetAlpha(1)
+    end
+    if not d.countAt then
+        rp.value:SetText(Rarity.ValueText(look, 1))
+    end
     rp.queue:SetText(#queue > 1 and (MUTED .. "+" .. (#queue - 1) .. "|r") or "")
     local ar, ag, ab = Theme.Accent()
     rp.timer:SetColorTexture(ar, ag, ab, 0.9)
@@ -1534,11 +1521,12 @@ local function Tick(self, elapsed)
         local rp = self.rollPane
         if not d.done then
             busy = true
-            if d.epic and rp.qcolor then
-                -- the epic wash breathes. Redrawn here rather than with an alpha animation: on this client an
-                -- animated gradient texture loses its colors and flashes white.
-                local r, g, b = rp.qcolor[1], rp.qcolor[2], rp.qcolor[3]
-                Gradient(rp.qglow, "HORIZONTAL", r, g, b, 0.14 + 0.16 * (math.sin(now * 2.8) + 1) / 2, r, g, b, 0)
+            local look = d.look
+            if look and look.tier.breathe then
+                -- the epic wash breathes slowly. Redrawn here rather than with an alpha animation: on this client
+                -- an animated gradient texture loses its colors and flashes white.
+                local a = look.tier.wash * (0.6 + 0.2 * (math.sin(now * 1.75) + 1))
+                Gradient(rp.qglow, "HORIZONTAL", look.r, look.g, look.b, a, look.r, look.g, look.b, 0)
             end
             local t = rollTimers[d.itemID]
             if t and t.endsAt > now then
@@ -1579,20 +1567,32 @@ local function Tick(self, elapsed)
                             row.nextSpin = now + 0.03 + 0.2 * prog * prog -- slows down like a slot machine reel
                         end
                         if p.suspense then
-                            -- the deciding number: its row breathes in the accent color until it lands
-                            local ar, ag, ab = Theme.Accent()
-                            row.bg:SetColorTexture(ar, ag, ab, 0.06 + 0.12 * math.abs(math.sin(now * 5)))
+                            -- the deciding number: its row breathes (one breath in 1.4 s) until it lands, in the
+                            -- item's color from uncommon up
+                            Rarity.SuspenseOn(d, true)
+                            local r, g, b = Theme.Accent()
+                            if d.look and d.look.quality >= 2 then
+                                r, g, b = d.look.fr, d.look.fg, d.look.fb
+                            end
+                            row.bg:SetColorTexture(r, g, b, 0.06 + 0.06 * (math.sin(now * 4.5) + 1))
                         end
                         PaintFill(row, p, FillWidth(p.roll) * (1 - (1 - prog) ^ 3))
                     end
                 elseif p.shown and row.fxStart then
                     busy = ClassFX(row, p, now, d.celebrated and d.winner == p) or busy
+                elseif Early.IdleSpin(p, d) then
+                    busy = true
+                    if now >= (row.nextSpin or 0) then
+                        row.num:SetText(math.random(1, 100))
+                        row.nextSpin = now + 0.09
+                    end
                 elseif not p.st and not d.done then
                     busy = true
                     row.num:SetText(DOTS[math.floor(now * 3) % 3 + 1])
                 end
             end
         end
+        busy = Rarity.Effects(d, now, elapsed) or busy
     end
     if not busy then
         animating = false
@@ -1607,6 +1607,155 @@ function StartAnimating()
     end
 end
 
+-- ===== rarity effects (src/RollFX.lua decides which ones an item gets) =====
+-- y of a row's middle, counted from the bottom of the window (the particles are placed from its lower left corner)
+function Rarity.RowY(row)
+    return win:GetHeight() - (row.y or row.ty or 0) - (ROW_H - 2) / 2
+end
+
+-- The deciding number starts or stops spinning: epic and up dim the other rows and tint the window's edge, a
+-- legendary darkens the world around the window a little.
+function Rarity.SuspenseOn(d, on)
+    if d.suspenseOn == on or not d.look then
+        return
+    end
+    d.suspenseOn = on
+    local tier, look = d.look.tier, d.look
+    if tier.edge and on then
+        RollFX.ShowEdge(win.edge, true, look.fr, look.fg, look.fb)
+    end
+    if tier.vignette then
+        RollFX.Vignette(on)
+    end
+    if tier.dim and d == current then
+        RenderRoll()
+    end
+end
+
+-- light running once over the winner's row, its bright edge in front
+function Rarity.StepSweep(row, now, r, g, b)
+    local k = (now - row.sweepStart) / 1.3
+    if k >= 1 then
+        row.sweepStart = nil
+        row.sweep:Hide()
+        return false
+    end
+    if k >= 0 then
+        local band = INNER * 0.4
+        local right = (INNER + band) * (1 - (1 - k) ^ 3)
+        local left = math.max(0, right - band)
+        right = math.min(INNER, right)
+        if right - left >= 1 then
+            row.sweep:ClearAllPoints()
+            row.sweep:SetPoint("TOPLEFT", row, "TOPLEFT", left, 0)
+            row.sweep:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", left, 0)
+            row.sweep:SetWidth(right - left)
+            Gradient(row.sweep, "HORIZONTAL", r, g, b, 0, r, g, b, 0.45)
+            row.sweep:Show()
+        end
+    end
+    return true
+end
+
+-- One frame of the effects that move: the legendary name fading in, embers, rays, the light over the winner's row,
+-- the value counting up and every particle. True while something still moves.
+function Rarity.Effects(d, now, dt)
+    local look = d.look
+    if not look then
+        return false
+    end
+    local rp, tier, busy = win.rollPane, look.tier, false
+    if d.nameFadeAt then
+        local k = (now - d.nameFadeAt) / 1.4
+        rp.name:SetAlpha(math.max(0.05, math.min(1, k)))
+        if k < 1 then
+            busy = true
+        else
+            d.nameFadeAt = nil
+        end
+    end
+    if tier.embers and (not d.celebratedAt or now - d.celebratedAt < 3) then
+        busy = true -- a few embers drift up from the bottom of the window for the whole roll
+        d.emberAcc = (d.emberAcc or 0) + dt * tier.embers
+        while d.emberAcc >= 1 do
+            d.emberAcc = d.emberAcc - 1
+            RollFX.Emit(win.motes, PAD + math.random() * INNER, 4, look.fr, look.fg * (0.7 + 0.3 * math.random()),
+                look.fb * 0.6, { vy = 12 + math.random() * 12, life = 2.2 + math.random(), size = 4 + math.random() * 2,
+                    flicker = true })
+        end
+    end
+    if d.celebratedAt and tier.rays then
+        busy = RollFX.StepRays(rp.rays, now - d.celebratedAt, look.fr, look.fg, look.fb) or busy
+    end
+    local row = d.winner and d.winner.row
+    if row and row.sweepStart then
+        busy = Rarity.StepSweep(row, now, look.fr, look.fg, look.fb) or busy
+    end
+    if d.countAt and now >= d.countAt then
+        local k = math.min(1, (now - d.countAt) / 1.4)
+        rp.value:SetText(Rarity.ValueText(look, 1 - (1 - k) ^ 3))
+        if k < 1 then
+            busy = true
+        else
+            d.countAt = nil
+        end
+    elseif d.countAt then
+        busy = true
+    end
+    return RollFX.Step(win.motes, dt) or busy
+end
+
+-- motes rise from the winner's row (and, for a legendary, embers burst out of the icon)
+function Rarity.Motes(d, row)
+    local look, tier = d.look, d.look.tier
+    local y = Rarity.RowY(row)
+    for i = 1, tier.motes do
+        RollFX.Emit(win.motes, PAD + 12 + math.random() * (INNER - 24), y + math.random(-4, 4), look.fr, look.fg, look.fb,
+            { delay = 0.35 + i * 0.07 })
+    end
+    if tier.embers then
+        local x, iy = PAD + ICON / 2, win:GetHeight() - PAD - ICON / 2
+        for _ = 1, 16 do
+            RollFX.Emit(win.motes, x, iy, look.fr, look.fg * (0.7 + 0.3 * math.random()), look.fb * 0.6,
+                { vx = math.random(-55, 55), vy = math.random(10, 60), life = 1.2 + math.random() * 1.2,
+                    size = 4 + math.random() * 2, flicker = true, delay = math.random() * 0.3 })
+        end
+    end
+end
+
+-- The game's win sound when you won it, a softer one when you rolled and lost, the coin when you were not in it.
+function Rarity.ResultSound(d)
+    local w = d.winner
+    if w.isSelf then
+        if d.look.tier.power >= 5 then
+            RollFX.SoundAny("UI_LEGENDARY_LOOT_TOAST", "UI_EPICLOOT_TOAST")
+        else
+            Sound("UI_EPICLOOT_TOAST")
+        end
+        return
+    end
+    local me = Me(d)
+    if me and me.st and me.st.kind ~= "pass" then
+        RollFX.SoundAny("IG_QUEST_LOG_ABANDON_QUEST", "IG_MAINMENU_CLOSE")
+    else
+        Sound("LOOT_WINDOW_COIN_SOUND")
+    end
+end
+
+-- Effects that belong to the drop on screen end with it.
+function Rarity.ClearEffects(d)
+    if d.suspenseOn then
+        d.suspenseOn = nil
+        RollFX.Vignette(false)
+    end
+    RollFX.ShowEdge(win.edge, false)
+    RollFX.ClearEmitter(win.motes)
+    if win.rollPane.rays then
+        win.rollPane.rays:SetAlpha(0)
+    end
+    win.rollPane.name:SetAlpha(1)
+end
+
 -- ===== the flow of one drop =====
 local function FlashRow(row, r, g, b)
     row.flash:SetVertexColor(r, g, b)
@@ -1614,10 +1763,10 @@ local function FlashRow(row, r, g, b)
 end
 
 -- sparks fly up from a row, in the UI's accent color with a few white ones
-local function Sparkle(row)
+local function Sparkle(row, count)
     local r, g, b = Theme.Accent()
     for i, t in ipairs(win.sparks) do
-        if t.anim and t.move then
+        if i <= count and t.anim and t.move then
             t:ClearAllPoints()
             t:SetPoint("CENTER", row, "LEFT", 14 + math.random() * (INNER - 28), 0)
             if i % 3 == 0 then
@@ -1673,35 +1822,55 @@ local function Celebrate(d)
             end
         end
     end
+    d.look = d.look or RollFX.Look(d.item)
+    local look, tier = d.look, d.look.tier
+    local p = d.winner
     if d == current then
         RenderRoll()
-        local p = d.winner
         if p and not d.allPassed then
-            Play(win.rollPane.burstAnim)
+            local rp = win.rollPane
+            d.celebratedAt = GetTime()
+            if tier.burst > 0 then
+                rp.burst:SetVertexColor(look.fr, look.fg, look.fb, tier.burst)
+                Play(rp.burstAnim)
+            end
+            RollFX.PlayRings(rp.rings, tier.rings, look.fr, look.fg, look.fb)
             if p.row then
-                FlashRow(p.row, 1, 1, 1)
+                if tier.power > 0 then
+                    FlashRow(p.row, look.fr, look.fg, look.fb)
+                end
                 Play(p.row.crownPop)
-                Sparkle(p.row)
-                if d.epic then
-                    After(0.45, function() -- a second burst for epic and better items
-                        if current == d and p.row then
-                            Sparkle(p.row)
-                            Play(win.rollPane.burstAnim)
-                        end
-                    end)
+                if tier.sparks > 0 then
+                    Sparkle(p.row, tier.sparks)
+                end
+                Rarity.Motes(d, p.row)
+                if tier.sweep then
+                    p.row.sweepStart = d.celebratedAt + 0.1
                 end
             end
-            Sound(p.isSelf and "UI_EPICLOOT_TOAST" or "LOOT_WINDOW_COIN_SOUND")
+            if look.price and look.band >= 1 then
+                d.countAt = d.celebratedAt + 0.3
+            end
+            if tier.edge then
+                After(2.6, function()
+                    if current == d then
+                        RollFX.ShowEdge(win.edge, false)
+                    end
+                end)
+            end
+            StartAnimating()
+            Rarity.ResultSound(d)
         end
+    end
+    if p and p.isSelf and not d.allPassed and not d.replay and ns.LootFrames then
+        ns.LootFrames.Toast(d.item, look, p.st, p.roll)
     end
     local fade = FadeAfter()
     local hold = fade > 0 and fade or HOLD_NO_FADE
     if #queue > 1 then
         hold = math.min(hold, HOLD_BUSY)
     end
-    if d.epic then
-        hold = hold + EPIC_HOLD
-    end
+    hold = hold + tier.hold
     After(hold, function()
         Retire(d)
     end)
@@ -1712,6 +1881,9 @@ local function Settle(d, p)
         return
     end
     p.shown = true
+    if p.suspense then
+        Rarity.SuspenseOn(d, false)
+    end
     local leader = Leader(d)
     local before = d.leader
     local newLeader = leader == p and before ~= nil and before ~= p
@@ -1765,7 +1937,7 @@ local function ScheduleReveals(d)
     for i, p in ipairs(fresh) do
         p.revealAt = t
         p.suspense = allIn and i == #fresh and #fresh > 1 and #queue <= 2
-        p.spin = p.suspense and (d.epic and EPIC_SPIN or SUSPENSE_SPIN) or SPIN
+        p.spin = p.suspense and d.look.tier.spin or SPIN
         local landAt = t + p.spin
         d.lastLanding = math.max(d.lastLanding or 0, landAt)
         After(landAt - now, function()
@@ -1800,6 +1972,7 @@ function Retire(d)
     end
     if current == d then
         current = nil
+        Rarity.ClearEffects(d)
         Release(rollRows)
         for _, p in ipairs(d.list) do
             p.row = nil
@@ -1899,7 +2072,7 @@ end
 
 local function NewDrop(key, item, demo)
     local d = { key = key, item = item, itemID = ns.ItemIDOf(item), players = {}, list = {}, demo = demo }
-    d.epic = (Quality(item) or 0) >= 4
+    d.look = RollFX.Look(item)
     if #queue >= MAX_QUEUE then
         Retire(queue[#queue] ~= current and queue[#queue] or queue[1]) -- a flood: the newest waiting one goes
     end
@@ -1919,6 +2092,7 @@ local function Merge(d, info, finished)
                 d.list[#d.list + 1] = p
             end
             if p then
+                p.guess = nil
                 if not p.class and UsableName(r.playerClass) then
                     p.class = r.playerClass
                 end
@@ -1959,6 +2133,42 @@ local function Merge(d, info, finished)
     end
 end
 
+-- A drop opened from START_LOOT_ROLL (before the loot history knew it) waiting for its loot history drop.
+function Early.Adopt(key, item)
+    local id = ns.ItemIDOf(item)
+    for _, d in ipairs(queue) do
+        if d.provisional and not d.retired and d.itemID == id then
+            d.provisional = nil
+            d.key = key
+            Remember(key, d)
+            return d
+        end
+    end
+    return nil
+end
+
+-- The group members shown while the roll waits for its first pick leave once the loot history names the players.
+function Early.DropGuesses(d)
+    local keep = {}
+    for _, p in ipairs(d.list) do
+        if p.guess then
+            d.players[p.short] = nil
+        else
+            keep[#keep + 1] = p
+        end
+    end
+    if #keep == #d.list then
+        return
+    end
+    d.list = keep
+    if current == d and win then
+        Release(rollRows)
+        for _, p in ipairs(d.list) do
+            p.row = nil
+        end
+    end
+end
+
 -- Every change of a drop comes through here (loot history updates while rolling, and the final result).
 local function Update(key, info, finished, demo)
     if not (demo or Enabled()) or type(info) ~= "table" then
@@ -1972,6 +2182,9 @@ local function Update(key, info, finished, demo)
     if d == false or (d and d.done) then
         return
     end
+    if not d and not demo then
+        d = Early.Adopt(key, item)
+    end
     if not d then
         if not demo and Skipped(item) then
             Remember(key, false)
@@ -1980,6 +2193,7 @@ local function Update(key, info, finished, demo)
         d = NewDrop(key, item, demo)
     end
     Merge(d, info, finished)
+    Early.DropGuesses(d)
     if finished then
         AddResult(d)
     end
@@ -2061,6 +2275,32 @@ local function OnFinished(info, encounterID, lootListKey)
     Update(key, info, true)
 end
 
+-- A roll we may roll on opens the window at once, before anyone has chosen: the drop is shown from the roll's own
+-- item link with the group waiting, and joined to the loot history's drop for the same item as soon as it reports.
+function Early.OpenFromRoll(rollID, link)
+    local key = "roll:" .. rollID
+    if not Enabled() or known[key] ~= nil or Skipped(link) then
+        return
+    end
+    local d = NewDrop(key, link)
+    d.provisional = true
+    for _, unit in ipairs(GroupUnits()) do
+        local okn, name = pcall(UnitName, unit)
+        local okc, _, class = pcall(UnitClass, unit)
+        if okn and UsableName(name) and not d.players[name] and #d.list < MAX_ROLLERS then
+            local p = { full = name, short = name, order = #d.list + 1, guess = true,
+                class = okc and UsableName(class) and class or nil, isSelf = unit == "player" }
+            d.players[name] = p
+            d.list[#d.list + 1] = p
+        end
+    end
+    if current then
+        RenderRoll() -- the "+N" counter
+    else
+        Advance()
+    end
+end
+
 -- START_LOOT_ROLL: the game's own countdown for an item we may roll on (rollTime in milliseconds).
 local function OnStartRoll(rollID, rollTime)
     if not (PlainNumber(rollID) and PlainNumber(rollTime) and rollTime > 0 and GetLootRollItemLink) then
@@ -2079,6 +2319,20 @@ local function OnStartRoll(rollID, rollTime)
     end
     local seconds = rollTime > 1000 and rollTime / 1000 or rollTime
     rollTimers[id] = { endsAt = now + seconds, duration = seconds }
+    Early.OpenFromRoll(rollID, link)
+end
+
+-- The roll ended (CANCEL_LOOT_ROLL). A drop opened from it that the loot history never reported is given up after
+-- a moment, so it cannot hold up the window.
+local function OnRollGone(rollID)
+    local d = PlainNumber(rollID) and known["roll:" .. rollID]
+    if d and d.provisional then
+        After(8, function()
+            if d.provisional then
+                Retire(d)
+            end
+        end)
+    end
 end
 
 local function OnZone()
@@ -2152,9 +2406,28 @@ local function Preview(on)
     return win
 end
 
--- /wwt demo: a made-up roll with you and four others, so the window can be seen (and placed) any time.
-local DEMO_ITEM = "|cffa335ee|Hitem:12640::::::::::::::|h[Lionheart Helm]|h|r"
-local function Demo()
+-- /wwt demo [quality] [win]: a made-up roll with you and four others, so the window can be seen (and placed) any
+-- time. The quality (poor .. legendary, or 0 .. 5) picks the sample item; "win" lets you win it.
+local DEMO_ITEMS = { -- [quality] = sample item
+    [0] = "|cff9d9d9d|Hitem:4865::::::::::::::|h[Ruined Pelt]|h|r",
+    [1] = "|cffffffff|Hitem:2589::::::::::::::|h[Linen Cloth]|h|r",
+    [2] = "|cff1eff00|Hitem:10400::::::::::::::|h[Blackened Defias Leggings]|h|r",
+    [3] = "|cff0070dd|Hitem:10399::::::::::::::|h[Blackened Defias Armor]|h|r",
+    [4] = "|cffa335ee|Hitem:12640::::::::::::::|h[Lionheart Helm]|h|r",
+    [5] = "|cffff8000|Hitem:19019::::::::::::::|h[Thunderfury, Blessed Blade of the Windseeker]|h|r",
+}
+DEMO_ITEMS.words = { poor = 0, grey = 0, gray = 0, common = 1, white = 1, uncommon = 2, green = 2, rare = 3,
+    blue = 3, epic = 4, purple = 4, legendary = 5, orange = 5 }
+local function Demo(args)
+    local quality, youWin = 4, false
+    for word in tostring(args or ""):lower():gmatch("%S+") do
+        if word == "win" then
+            youWin = true
+        elseif DEMO_ITEMS.words[word] or (tonumber(word) and DEMO_ITEMS[tonumber(word)]) then
+            quality = DEMO_ITEMS.words[word] or tonumber(word)
+        end
+    end
+    local item = DEMO_ITEMS[quality]
     if not EnsureWindow() then
         return
     end
@@ -2172,16 +2445,19 @@ local function Demo()
         end
     end
     local S = ROLL_STATE
-    -- A plate helm: three Need, two Greed (they drop out, so the game gives them no number), and the priest wins
-    -- it on Need, so the ninja loot flag shows. You greed, so your own class never adds a second ninja.
+    -- Three Need, two Greed (they drop out, so the game gives them no number), and the priest wins it on Need, so
+    -- the ninja loot flag shows on plate. You greed, so your own class never adds a second ninja; with "win" you
+    -- need and win it instead.
     local ninja = { "Seluna", "PRIEST", S.NeedMainSpec }
+    local mine = { me, myClass, youWin and S.NeedMainSpec or S.Greed, true }
     local cast = {
-        { "Brakk", "WARRIOR", S.NeedMainSpec }, { me, myClass, S.Greed, true }, ninja,
+        { "Brakk", "WARRIOR", S.NeedMainSpec }, mine, ninja,
         { "Rax", "ROGUE", S.Greed }, { "Thorgrim", "PALADIN", S.NeedMainSpec },
     }
+    local best = youWin and mine or ninja
     local used = {}
     for _, c in ipairs(cast) do
-        if c[3] == S.NeedMainSpec and c ~= ninja then
+        if c[3] == S.NeedMainSpec and c ~= best then
             local n
             repeat
                 n = math.random(15, 90)
@@ -2194,8 +2470,7 @@ local function Demo()
     for n in pairs(used) do
         top = math.max(top, n)
     end
-    ninja.roll = math.random(top + 1, 100) -- the ninja always wins the demo
-    local best = ninja
+    best.roll = math.random(top + 1, 100) -- the ninja (or you, with "win") always wins the demo
     local function Info(chosen, rolled, finished)
         local list = {}
         for i, c in ipairs(cast) do
@@ -2203,14 +2478,14 @@ local function Demo()
                 state = i <= chosen and c[3] or S.NoRoll, roll = rolled and c.roll or nil,
                 isWinner = finished and c == best }
         end
-        return { itemHyperlink = DEMO_ITEM, rollInfos = list }
+        return { itemHyperlink = item, rollInfos = list }
     end
     userClosed = nil
     Update(key, Info(0), false, true)
     local d = known[key]
     if d then
         d.demo = true
-        rollTimers[ns.ItemIDOf(DEMO_ITEM)] = { endsAt = GetTime() + 8, duration = 8 }
+        rollTimers[ns.ItemIDOf(item)] = { endsAt = GetTime() + 8, duration = 8 }
     end
     for step = 1, #cast do
         After(0.5 * step, function()
@@ -2224,10 +2499,11 @@ end
 
 -- ===== shared with the other files =====
 ns.RollWindow = {
-    OnProgress = OnProgress, OnFinished = OnFinished, OnStartRoll = OnStartRoll, OnZone = OnZone,
+    OnProgress = OnProgress, OnFinished = OnFinished, OnStartRoll = OnStartRoll, OnRollGone = OnRollGone, OnZone = OnZone,
     SetEnabled = SetEnabled, Toggle = Toggle, ResetPos = ResetPos, Demo = Demo,
 }
 -- used by Movers.lua
 ns.EnsureRollWindow, ns.RollWindowPreview, ns.PlaceRollWindow = EnsureWindow, Preview, Place
 ns.StoreRollWinPos, ns.ClearRollWinPos = StorePos, ClearPos
+ns.ItemLabel = ItemLabel -- used by LootFrames.lua
 ns.ROLL_WINDOW_W = W

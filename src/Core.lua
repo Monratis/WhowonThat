@@ -24,6 +24,8 @@ local DEFAULTS = {
     rollWindow = true,  -- the roll window: live rolls and, between them, what the group has won
     rollWinFade = 10,   -- seconds a result stays in the roll window before it fades (0 = it never fades on its own)
     chatLine = true,    -- one short line in your own chat per result; clicking its item replays the roll
+    rollButtons = true, -- Need / Greed / Pass at the roll window instead of the game's roll frames
+    wonToast = true,    -- the addon's own toast when you win a roll, instead of the game's alert
 }
 
 local TYPE_LABEL = { need = "Need", greed = "Greed", de = "Disenchant", pass = "Pass" }
