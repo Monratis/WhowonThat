@@ -17,9 +17,10 @@ local Anim, RollFX, Theme = ns.Anim, ns.RollFX, ns.Theme
 local ART, Gradient, PlainNumber, StyleItemBorder = ns.ART, ns.Gradient, ns.PlainNumber, ns.StyleItemBorder
 local TrySetFile, UsableName, ItemLabel = ns.TrySetFile, ns.UsableName, ns.ItemLabel
 
-local ROW_H, ROW_GAP, SLOT, BTN = 40, 3, 34, 30
+local ROW_H, ROW_GAP, SLOT, BTN = 65, 5, 56, 46
 local MAX_ROWS = 8
-local PROMPT_W = 300            -- a little wider than the game's 277 pixel roll popup
+local LIFT = 30                 -- pixels above the game's own roll popup spot (clear of what sits right under it)
+local PROMPT_W = 460            -- wider than the game's 277 pixel roll popup: easy to see and to hit
 local CHOSEN_HOLD = 0.9         -- seconds a row stays after you chose, showing your choice
 local TOAST_W, TOAST_H, TOAST_ICON = 290, 60, 40
 local TOAST_TIME = 5            -- seconds a toast stays (plus the item's extra hold)
@@ -196,7 +197,7 @@ local function MakeRow()
     row.wash:SetPoint("TOPLEFT", 2, -2)
     row.wash:SetPoint("BOTTOMLEFT", 2, 2)
     row.slot = SlotFor(row, SLOT)
-    row.slot:SetPoint("LEFT", 3, 0)
+    row.slot:SetPoint("LEFT", 5, 0)
     row.slot:SetScript("OnEnter", SlotEnter)
     row.slot:SetScript("OnLeave", ns.ItemButtonLeave)
     row.slot:SetScript("OnClick", ns.ItemButtonClick)
@@ -214,19 +215,19 @@ local function MakeRow()
         row.buttons[i] = b
     end
     row.name = row:CreateFontString(nil, "OVERLAY")
-    Theme.SetFont(row.name, 13)
+    Theme.SetFont(row.name, 16)
     row.name:SetWordWrap(false)
     row.name:SetJustifyH("LEFT")
-    row.name:SetPoint("TOPLEFT", row.slot, "TOPRIGHT", 8, -3)
+    row.name:SetPoint("TOPLEFT", row.slot, "TOPRIGHT", 12, -9)
     row.chosen = row:CreateFontString(nil, "OVERLAY")
-    Theme.SetFont(row.chosen, 12)
+    Theme.SetFont(row.chosen, 14)
     row.chosen:SetPoint("RIGHT", row, "RIGHT", -8, 0)
     row.barBg = row:CreateTexture(nil, "ARTWORK")
-    row.barBg:SetHeight(3)
-    row.barBg:SetPoint("BOTTOMLEFT", row.slot, "BOTTOMRIGHT", 8, 3)
+    row.barBg:SetHeight(6)
+    row.barBg:SetPoint("BOTTOMLEFT", row.slot, "BOTTOMRIGHT", 12, 8)
     row.barBg:SetColorTexture(1, 1, 1, 0.07)
     row.bar = row:CreateTexture(nil, "ARTWORK", nil, 1)
-    row.bar:SetHeight(3)
+    row.bar:SetHeight(6)
     row.bar:SetPoint("LEFT", row.barBg, "LEFT")
     return row
 end
@@ -256,12 +257,12 @@ local function Fill(e)
         end
     end
     -- the shown buttons line up from the right edge; the name and the countdown end where they begin
-    local right = -5
+    local right = -7
     for _, b in ipairs(row.buttons) do
         if b:IsShown() then
             b:ClearAllPoints()
             b:SetPoint("RIGHT", row, "RIGHT", right, 0)
-            right = right - BTN - 4
+            right = right - BTN - 5
         end
     end
     row.textRight = right - 6
@@ -298,18 +299,18 @@ local function Place()
         local ok, point, rel = pcall(loot.GetPoint, loot, 1)
         local okb, bottom = pcall(loot.GetBottom, loot)
         if ok and okb and point and Readable(point, rel) and PlainNumber(bottom) and (col == nil or rel ~= col) then
-            prompt:SetPoint("BOTTOM", loot, "BOTTOM", 0, 0)
+            prompt:SetPoint("BOTTOM", loot, "BOTTOM", 0, LIFT)
             return
         end
     end
     if type(col) == "table" and col.GetTop then
         local ok, top = pcall(col.GetTop, col)
         if ok and PlainNumber(top) then
-            prompt:SetPoint("BOTTOM", col, "TOP", 0, 4)
+            prompt:SetPoint("BOTTOM", col, "TOP", 0, LIFT)
             return
         end
     end
-    prompt:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, 200)
+    prompt:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, 200 + LIFT)
 end
 
 function Layout()

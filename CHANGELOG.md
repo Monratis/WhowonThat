@@ -1,5 +1,9 @@
 # Changelog
 
+## 4.11.2
+
+- Bigger Need / Greed / Pass rows (taller, wider, larger buttons, icon and countdown), a little higher above the game's roll popup spot.
+
 ## 4.11.1
 
 - The Need / Greed / Pass buttons sit where the game's own roll popups would be: wherever your UI (ElvUI movers, EllesmereUI Unlock Mode and the like) has placed them, otherwise in the game's spot in the middle above the action bars - instead of on top of the roll window.
