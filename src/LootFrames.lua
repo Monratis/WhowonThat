@@ -505,16 +505,15 @@ local function BuildToast()
     end
     f.glow:Hide()
     f.burst = f:CreateTexture(nil, "ARTWORK")
-    f.burst:SetSize(96, 96)
+    f.burst:SetSize(TOAST_ICON * 1.6, TOAST_ICON * 1.6)
     f.burst:SetPoint("CENTER", f.slot, "CENTER")
     if TrySetFile(f.burst, ART.glow) then
         f.burst:SetBlendMode("ADD")
-        f.burstAnim = Anim.MakeFlash(f.burst, 1, 0.9, 0.5, 1.6)
+        f.burstAnim = Anim.MakeFlash(f.burst, 1, 0.9, 0.6, 1.2) -- stays around the icon
     else
         f.burst:Hide()
     end
-    f.rings = RollFX.NewRings(f, f.slot, 3, TOAST_ICON * 1.5)
-    f.rays = RollFX.NewRays(f, f.slot, 130)
+    f.rays = RollFX.NewRays(f, f.slot, TOAST_ICON * 1.6)
     f.motes = RollFX.NewEmitter(f, 24)
     f.title = f:CreateFontString(nil, "OVERLAY")
     Theme.SetFont(f.title, 10)
@@ -581,7 +580,6 @@ local function PlayToast(t)
         f.burst:SetVertexColor(look.fr, look.fg, look.fb, tier.burst)
         Anim.Play(f.burstAnim)
     end
-    RollFX.PlayRings(f.rings, tier.rings, look.fr, look.fg, look.fb)
     for i = 1, tier.motes do
         RollFX.Emit(f.motes, 60 + math.random() * (TOAST_W - 80), 14 + math.random() * 10, look.fr, look.fg, look.fb,
             { delay = 0.2 + i * 0.07 })

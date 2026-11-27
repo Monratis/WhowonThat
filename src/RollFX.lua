@@ -2,36 +2,36 @@
 -- The rarer (or the more valuable on the auction house) an item, the more its roll shows - but always quietly and in
 -- the item's own quality color: every step keeps what the step below has and adds one visible thing.
 --   poor: a crown only          common: a few sparks         uncommon: light sweeps the winner, motes rise
---   rare: a thin ring, the winner is marked                  epic: the rest dims, a soft bloom behind the icon
+--   rare: the icon glows, the winner is marked              epic: the rest dims, a soft bloom behind the icon
 --   legendary: the name fades in, embers drift up, slow rays behind the icon
 -- A price from a price addon raises the step: 100 gold or more by one, 500 gold or more to at least epic.
 -- Nothing here shakes or strobes; a pulse is never faster than 1.4 seconds, and every effect ends in a calm state.
+-- Every effect stays inside its own frame: nothing grows over the screen or darkens the world around it.
 local _, ns = ...
 
 local ART, PlainNumber, TrySetFile = ns.ART, ns.PlainNumber, ns.TrySetFile
 
 local SPARK = "Interface\\Cooldown\\star4"
 local RAYS = "Interface\\Cooldown\\starburst"
-local VIGNETTE = "Interface\\FullScreenTextures\\LowHealth"
 local GOLD = 10000 -- copper
 local WORTH_GOLD, RICH_GOLD, TREASURE_GOLD = 20, 100, 500
 
 -- One table per step (index = power 0 .. 5).
 --   spin: seconds the deciding number spins     hold: extra seconds the result stays on screen
 --   wash: alpha of the quality wash in the header (breathe: it slowly breathes)
---   burst: peak alpha of the light behind the icon at the win, rings: thin rings from the icon
+--   burst: peak alpha of the light behind the icon at the win
 --   sparks / motes: particles at the winner, embers: embers per second rising during the roll
 local TIERS = {
-    [0] = { power = 0, spin = 1.4, hold = 0, wash = 0.06, burst = 0, rings = 0, sparks = 0, motes = 0 },
-    [1] = { power = 1, spin = 1.6, hold = 0, wash = 0.10, burst = 0.5, rings = 0, sparks = 5, motes = 0, tint = true },
-    [2] = { power = 2, spin = 1.8, hold = 0, wash = 0.14, burst = 0.5, rings = 0, sparks = 0, motes = 7, tint = true,
+    [0] = { power = 0, spin = 1.4, hold = 0, wash = 0.06, burst = 0, sparks = 0, motes = 0 },
+    [1] = { power = 1, spin = 1.6, hold = 0, wash = 0.10, burst = 0.5, sparks = 5, motes = 0, tint = true },
+    [2] = { power = 2, spin = 1.8, hold = 0, wash = 0.14, burst = 0.5, sparks = 0, motes = 7, tint = true,
         sweep = true },
-    [3] = { power = 3, spin = 2.1, hold = 1, wash = 0.18, burst = 0.65, rings = 1, sparks = 0, motes = 9, tint = true,
+    [3] = { power = 3, spin = 2.1, hold = 1, wash = 0.18, burst = 0.65, sparks = 0, motes = 9, tint = true,
         sweep = true, mark = true, iconGlow = true },
-    [4] = { power = 4, spin = 2.8, hold = 2, wash = 0.26, breathe = true, burst = 0.85, rings = 2, sparks = 0, motes = 12,
+    [4] = { power = 4, spin = 2.8, hold = 2, wash = 0.26, breathe = true, burst = 0.85, sparks = 0, motes = 12,
         tint = true, sweep = true, mark = true, iconGlow = true, dim = true, edge = true },
-    [5] = { power = 5, spin = 3.8, hold = 4, wash = 0.30, breathe = true, burst = 1, rings = 3, sparks = 0, motes = 16,
-        tint = true, sweep = true, mark = true, iconGlow = true, dim = true, edge = true, vignette = true,
+    [5] = { power = 5, spin = 3.8, hold = 4, wash = 0.30, breathe = true, burst = 1, sparks = 0, motes = 16,
+        tint = true, sweep = true, mark = true, iconGlow = true, dim = true, edge = true,
         embers = 2.5, rays = true, reveal = true },
 }
 
@@ -214,41 +214,6 @@ local function ClearEmitter(e)
     wipe(e.live)
 end
 
--- ===== thin rings: the game's soft square glow, growing out of an icon one after another =====
-local function NewRings(parent, anchor, count, size)
-    local list = {}
-    for i = 1, count do
-        local t = parent:CreateTexture(nil, "ARTWORK", nil, 2)
-        if TrySetFile(t, ART.glow) then
-            t:SetBlendMode("ADD")
-            t:SetSize(size, size)
-            t:SetPoint("CENTER", anchor, "CENTER")
-            t.anim = MakeFlash(t, 0.55 - (i - 1) * 0.12, 1.1, 0.7, 2.6 + i * 0.5)
-            if t.anim then
-                for _, a in ipairs({ t.anim:GetAnimations() }) do
-                    if a.SetStartDelay then
-                        a:SetStartDelay((i - 1) * 0.22)
-                    end
-                end
-            end
-        else
-            t:Hide()
-        end
-        list[i] = t
-    end
-    return list
-end
-
-local function PlayRings(list, count, r, g, b)
-    for i = 1, math.min(count, #list) do
-        local t = list[i]
-        if t.anim then
-            t:SetVertexColor(r, g, b)
-            Play(t.anim)
-        end
-    end
-end
-
 -- ===== slow rays behind an icon (legendary): turned and faded by the caller's OnUpdate =====
 local function NewRays(parent, anchor, size)
     local t = parent:CreateTexture(nil, "BACKGROUND", nil, 3)
@@ -304,45 +269,6 @@ local function ShowEdge(edge, on, r, g, b)
     end
 end
 
--- ===== the world around the window darkens a little (legendary, while the deciding number spins) =====
-local vignette
-local function Vignette(on)
-    if not vignette then
-        if not on or not CreateFrame then
-            return
-        end
-        local f = CreateFrame("Frame", nil, UIParent)
-        f:SetAllPoints(UIParent)
-        f:SetFrameStrata("BACKGROUND")
-        f:EnableMouse(false)
-        local t = f:CreateTexture(nil, "BACKGROUND")
-        t:SetAllPoints()
-        if not TrySetFile(t, VIGNETTE) then
-            return
-        end
-        t:SetVertexColor(0, 0, 0)
-        f.alpha, f.target = 0, 0
-        f:SetAlpha(0)
-        f:SetScript("OnUpdate", function(self, elapsed)
-            local step = elapsed / 1.2 -- fades over 1.2 seconds
-            if self.alpha < self.target then
-                self.alpha = math.min(self.target, self.alpha + step)
-            else
-                self.alpha = math.max(self.target, self.alpha - step)
-            end
-            self:SetAlpha(self.alpha)
-            if self.alpha == self.target and self.target == 0 then
-                self:Hide()
-            end
-        end)
-        vignette = f
-    end
-    vignette.target = on and 0.55 or 0
-    if on then
-        vignette:Show()
-    end
-end
-
 -- ===== sounds =====
 local function SoundAny(...)
     if not (SOUNDKIT and PlaySound) then
@@ -361,8 +287,7 @@ end
 ns.RollFX = {
     Look = Look, ValueBand = ValueBand, TIERS = TIERS,
     NewEmitter = NewEmitter, Emit = Emit, Step = Step, ClearEmitter = ClearEmitter,
-    NewRings = NewRings, PlayRings = PlayRings, NewRays = NewRays, StepRays = StepRays,
-    NewEdge = NewEdge, ShowEdge = ShowEdge, Vignette = Vignette, SoundAny = SoundAny,
+    NewRays = NewRays, StepRays = StepRays, NewEdge = NewEdge, ShowEdge = ShowEdge, SoundAny = SoundAny,
 }
 ns.Anim = { New = NewAnim, Add = AddAnim, ScaleBetween = ScaleBetween, MakePop = MakePop, MakeFlash = MakeFlash,
     Play = Play }

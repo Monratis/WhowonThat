@@ -580,15 +580,15 @@ local function BuildRollPane(rp)
     rp.item:SetScript("OnLeave", ns.ItemButtonLeave)
     rp.item:SetScript("OnClick", ns.ItemButtonClick)
     rp.burst = rp:CreateTexture(nil, "ARTWORK")
-    rp.burst:SetSize(96, 96)
+    rp.burst:SetSize(ICON * 1.6, ICON * 1.6)
     rp.burst:SetPoint("CENTER", rp.item, "CENTER")
     if TrySetFile(rp.burst, ART.glow) then
         rp.burst:SetBlendMode("ADD")
     else
         rp.burst:SetColorTexture(1, 1, 1, 0.4)
     end
-    rp.burstAnim = MakeFlash(rp.burst, 1, 0.9, 0.5, 1.6)
-    -- rare and up: the icon glows softly in its quality color; thin rings leave it at the win; legendary: slow rays
+    rp.burstAnim = MakeFlash(rp.burst, 1, 0.9, 0.6, 1.2) -- stays around the icon, never over the window
+    -- rare and up: the icon glows softly in its quality color; legendary: slow rays behind it after the win
     rp.iconGlow = rp:CreateTexture(nil, "ARTWORK", nil, -1)
     rp.iconGlow:SetSize(ICON * 1.9, ICON * 1.9)
     rp.iconGlow:SetPoint("CENTER", rp.item, "CENTER")
@@ -597,8 +597,7 @@ local function BuildRollPane(rp)
         rp.iconGlow:SetBlendMode("ADD")
     end
     rp.iconGlow:Hide()
-    rp.rings = RollFX.NewRings(rp, rp.item, 3, ICON * 1.5)
-    rp.rays = RollFX.NewRays(rp, rp.item, 150)
+    rp.rays = RollFX.NewRays(rp, rp.item, ICON * 2.2)
     rp.name = Text(rp, 13)
     rp.name:SetPoint("TOPLEFT", rp.item, "TOPRIGHT", 8, -1)
     rp.name:SetJustifyH("LEFT")
@@ -1613,8 +1612,7 @@ function Rarity.RowY(row)
     return win:GetHeight() - (row.y or row.ty or 0) - (ROW_H - 2) / 2
 end
 
--- The deciding number starts or stops spinning: epic and up dim the other rows and tint the window's edge, a
--- legendary darkens the world around the window a little.
+-- The deciding number starts or stops spinning: epic and up dim the other rows and tint the window's edge.
 function Rarity.SuspenseOn(d, on)
     if d.suspenseOn == on or not d.look then
         return
@@ -1623,9 +1621,6 @@ function Rarity.SuspenseOn(d, on)
     local tier, look = d.look.tier, d.look
     if tier.edge and on then
         RollFX.ShowEdge(win.edge, true, look.fr, look.fg, look.fb)
-    end
-    if tier.vignette then
-        RollFX.Vignette(on)
     end
     if tier.dim and d == current then
         RenderRoll()
@@ -1744,10 +1739,7 @@ end
 
 -- Effects that belong to the drop on screen end with it.
 function Rarity.ClearEffects(d)
-    if d.suspenseOn then
-        d.suspenseOn = nil
-        RollFX.Vignette(false)
-    end
+    d.suspenseOn = nil
     RollFX.ShowEdge(win.edge, false)
     RollFX.ClearEmitter(win.motes)
     if win.rollPane.rays then
@@ -1834,7 +1826,6 @@ local function Celebrate(d)
                 rp.burst:SetVertexColor(look.fr, look.fg, look.fb, tier.burst)
                 Play(rp.burstAnim)
             end
-            RollFX.PlayRings(rp.rings, tier.rings, look.fr, look.fg, look.fb)
             if p.row then
                 if tier.power > 0 then
                     FlashRow(p.row, look.fr, look.fg, look.fb)

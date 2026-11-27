@@ -1,5 +1,9 @@
 # Changelog
 
+## 4.11.5
+
+- Every win effect now stays inside its window: no more darkening of the whole screen for a legendary, no more rings growing out of the icon, and a smaller light and rays behind the icon (in the roll window and the loot toast).
+
 ## 4.11.4
 
 - The Need / Greed / Pass rows show the item's auction house value under its name (with a price addon that knows the item); 20 gold and more in gold.
