@@ -17,10 +17,10 @@ local Anim, RollFX, Theme = ns.Anim, ns.RollFX, ns.Theme
 local ART, Gradient, PlainNumber, StyleItemBorder = ns.ART, ns.Gradient, ns.PlainNumber, ns.StyleItemBorder
 local TrySetFile, UsableName, ItemLabel = ns.TrySetFile, ns.UsableName, ns.ItemLabel
 
-local ROW_H, ROW_GAP, SLOT, BTN = 65, 5, 56, 46
+local ROW_H, ROW_GAP, SLOT, BTN = 52, 4, 44, 38
 local MAX_ROWS = 8
 local LIFT = 30                 -- pixels above the game's own roll popup spot (clear of what sits right under it)
-local PROMPT_W = 460            -- wider than the game's 277 pixel roll popup: easy to see and to hit
+local PROMPT_W = 400            -- wider than the game's 277 pixel roll popup: easy to see and to hit
 local CHOSEN_HOLD = 0.9         -- seconds a row stays after you chose, showing your choice
 local TOAST_W, TOAST_H, TOAST_ICON = 290, 60, 40
 local TOAST_TIME = 5            -- seconds a toast stays (plus the item's extra hold)
@@ -215,19 +215,19 @@ local function MakeRow()
         row.buttons[i] = b
     end
     row.name = row:CreateFontString(nil, "OVERLAY")
-    Theme.SetFont(row.name, 16)
+    Theme.SetFont(row.name, 15)
     row.name:SetWordWrap(false)
     row.name:SetJustifyH("LEFT")
-    row.name:SetPoint("TOPLEFT", row.slot, "TOPRIGHT", 12, -9)
+    row.name:SetPoint("TOPLEFT", row.slot, "TOPRIGHT", 10, -6)
     row.chosen = row:CreateFontString(nil, "OVERLAY")
     Theme.SetFont(row.chosen, 14)
     row.chosen:SetPoint("RIGHT", row, "RIGHT", -8, 0)
     row.barBg = row:CreateTexture(nil, "ARTWORK")
-    row.barBg:SetHeight(6)
-    row.barBg:SetPoint("BOTTOMLEFT", row.slot, "BOTTOMRIGHT", 12, 8)
+    row.barBg:SetHeight(5)
+    row.barBg:SetPoint("BOTTOMLEFT", row.slot, "BOTTOMRIGHT", 10, 6)
     row.barBg:SetColorTexture(1, 1, 1, 0.07)
     row.bar = row:CreateTexture(nil, "ARTWORK", nil, 1)
-    row.bar:SetHeight(6)
+    row.bar:SetHeight(5)
     row.bar:SetPoint("LEFT", row.barBg, "LEFT")
     return row
 end

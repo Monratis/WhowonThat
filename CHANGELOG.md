@@ -1,5 +1,9 @@
 # Changelog
 
+## 4.11.3
+
+- The Need / Greed / Pass rows are a size smaller again: still easy to see and to click, without taking over the screen.
+
 ## 4.11.2
 
 - Bigger Need / Greed / Pass rows (taller, wider, larger buttons, icon and countdown), a little higher above the game's roll popup spot.
