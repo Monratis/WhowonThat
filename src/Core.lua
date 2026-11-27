@@ -22,6 +22,8 @@ local DEFAULTS = {
     language = "auto",  -- language of settings and messages: "auto" (the game's language) or a locale such as "deDE"
     summary = "everyone", -- loot summary window at the end of a dungeon: "off", "mine" (only my items) or "everyone"
     rollWindow = true,  -- the roll window: live rolls and, between them, what the group has won
+    rollWinFade = 10,   -- seconds a result stays in the roll window before it fades (0 = it never fades on its own)
+    chatLine = true,    -- one short line in your own chat per result; clicking its item replays the roll
 }
 
 local TYPE_LABEL = { need = "Need", greed = "Greed", de = "Disenchant", pass = "Pass" }

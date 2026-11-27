@@ -119,7 +119,7 @@ return {
         w:drop(1, item(25, "Worn Shortsword")):roll("Brakk", "need", 74):finish("Brakk")
         w:advance(2)
         t.ok(shown(me), "the next roll opens it again")
-        w:advance(10)
+        w:advance(15)
         t.ok(not shown(me), "and after the roll the closed board stays away")
     end },
 
@@ -131,7 +131,7 @@ return {
         t.has(World.screen(me), "Lionheart Helm")
         w:advance(7)
         t.has(World.screen(me), "Seluna wins!") -- three Need, two Greed, and the priest ninjas the plate helm
-        w:advance(10)
+        w:advance(20)
         t.ok(not shown(me), "the demo ends outside an instance")
     end },
 
@@ -204,7 +204,8 @@ return {
         w:advance(10)
         local said = table.concat(World.said(me), " ")
         t.has(said, "Worn Shortsword") -- and the result went to party chat
-        t.eq(World.chatText(me, 1), "", "nothing of my own in chat")
+        t.lacks(World.chatText(me, 1), "won by", "my own line names me, not a third person")
+        t.has(World.chatText(me, 1), "You won")
     end },
 
     { "greed players drop out as soon as someone needs", function(w, t)
@@ -229,5 +230,110 @@ return {
         me.fire("GET_ITEM_INFO_RECEIVED", 12640, true)
         w:advance(1)
         t.has(World.screen(me), "Lionheart Helm")
+    end },
+
+    { "the animations (class bars and every class effect) run frame by frame without errors", function(w, t)
+        local classes = { "MAGE", "WARRIOR", "ROGUE", "HUNTER", "PRIEST", "PALADIN", "DRUID", "SHAMAN", "WARLOCK" }
+        local list = {}
+        for i, cls in ipairs(classes) do
+            list[i] = w:addClient({ name = "P" .. cls:sub(1, 1) .. cls:sub(2):lower(), class = cls })
+        end
+        w:formGroup(list)
+        local me = list[1]
+        local function frames(n)
+            local f = me.env.WhoWonThatRollWindow
+            for _ = 1, n do
+                w:advance(0.05)
+                local tick = f and f:GetScript("OnUpdate")
+                if tick then tick(f, 0.05) end
+            end
+        end
+        w:encounter(100, "Hogger")
+        local d = w:drop(100, item(25, "Worn Shortsword"))
+        for i, c in ipairs(list) do d:roll(c.name, "need", 100 - i * 7) end
+        frames(40)
+        d:finish(list[1].name)
+        frames(300) -- every number spins and lands, each with its class effect, then the winner
+        me.slash("/wwt demo")
+        frames(240)
+        t.eq(#me.errors, 0)
+        t.has(World.screen(me), "wins!")
+    end },
+    { "one result line in your own chat, only once the winner is shown", function(w, t)
+        local me = group(w)
+        w:encounter(100, "Hogger")
+        local d = w:drop(100, item(25, "Worn Shortsword"))
+        d:roll("Brakk", "need", 74):roll("Seluna", "greed", 55):roll("Monra", "pass")
+        w:advance(0.3)
+        d:finish("Brakk")
+        w:advance(0.3)
+        t.eq(World.chatText(me, 1), "", "the chat does not give the result away while the numbers spin")
+        w:advance(4)
+        local chat = World.chatText(me, 1)
+        t.has(chat, "[Worn Shortsword] won by Brakk (Need 74)")
+        t.eq(select(2, chat:gsub("Worn Shortsword", "")), 1, "one line")
+        t.eq(#World.said(me), 0, "nothing goes to the group")
+    end },
+
+    { "the result line can be turned off", function(w, t)
+        local me = group(w, { chatLine = false })
+        w:encounter(100, "Hogger")
+        w:drop(100, item(25, "Worn Shortsword")):roll("Brakk", "need", 74):finish("Brakk")
+        w:advance(15)
+        t.eq(World.chatText(me, 1), "")
+    end },
+
+    { "clicking the item of a result line replays the roll", function(w, t)
+        local me = group(w)
+        w:encounter(100, "Hogger")
+        w:drop(100, item(25, "Worn Shortsword")):roll("Brakk", "need", 74):roll("Monra", "need", 30)
+            :roll("Seluna", "pass"):finish("Brakk")
+        w:advance(20)
+        t.ok(not shown(me), "faded away after the result")
+        me.env.SetItemRef("item:26::::::::::::::", "[Rusty Hatchet]", "LeftButton")
+        w:advance(1)
+        t.ok(not shown(me), "an item without a result line does nothing")
+        me.env.IsShiftKeyDown = function() return true end
+        me.env.SetItemRef("item:25::::::::::::::", "[Worn Shortsword]", "LeftButton")
+        w:advance(1)
+        t.ok(not shown(me), "shift-click only links the item")
+        me.env.IsShiftKeyDown = function() return false end
+        me.env.SetItemRef("item:25::::::::::::::", "[Worn Shortsword]", "LeftButton")
+        me.env.SetItemRef("item:25::::::::::::::", "[Worn Shortsword]", "LeftButton")
+        w:advance(0.5)
+        t.ok(shown(me), "the click opens the window again")
+        t.has(World.screen(me), "Worn Shortsword")
+        t.lacks(World.screen(me), "+1", "a double click does not queue the replay twice")
+        w:advance(4)
+        t.has(World.screen(me), "Brakk wins!")
+        t.eq(select(2, World.chatText(me, 1):gsub("Worn Shortsword", "")), 1, "a replay writes no second line")
+        w:advance(15)
+        t.ok(not shown(me), "and fades again")
+        t.eq(#me.errors, 0)
+    end },
+
+    { "the fade time follows the setting", function(w, t)
+        local me = group(w, { rollWinFade = 20 })
+        w:encounter(100, "Hogger")
+        w:drop(100, item(25, "Worn Shortsword")):roll("Brakk", "need", 74):finish("Brakk")
+        w:advance(18)
+        t.ok(shown(me), "still there before the set time")
+        w:advance(8)
+        t.ok(not shown(me), "gone after it")
+    end },
+
+    { "with fading off the window stays open until closed", function(w, t)
+        local me = group(w, { rollWinFade = 0 })
+        w:encounter(100, "Hogger")
+        w:drop(100, item(25, "Worn Shortsword")):roll("Brakk", "need", 74):finish("Brakk")
+        w:advance(60)
+        t.ok(shown(me), "still open long after the result")
+        t.has(World.screen(me), "Brakk") -- the board took over
+        me.fire("ZONE_CHANGED_NEW_AREA")
+        w:advance(1)
+        t.ok(shown(me), "a zone change keeps it open")
+        window(me).close:GetScript("OnClick")(window(me).close)
+        w:advance(1)
+        t.ok(not shown(me), "the X closes it")
     end },
 }

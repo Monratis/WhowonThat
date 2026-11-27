@@ -18,8 +18,9 @@ return {
         w:advance(3)
         for i = 1, 3 do
             t.count(World.rawLines(me, i), 0, "raw roll lines in window " .. i)
-            t.count(World.chat(me, i), 0, "addon lines in window " .. i)
+            t.count(World.chat(me, i), i == 1 and 1 or 0, "only the one result line, in the main window " .. i)
         end
+        t.has(World.chatText(me, 1), "won by Brakk (Need 74)")
         t.ok(not me.chatHidden("CHAT_MSG_LOOT", me.env.ChatFrame1, "You receive loot: " .. item(26, "Rusty Hatchet") .. "."),
             "a picked up item still shows in chat")
         t.has(World.screen(me), "Brakk wins!")

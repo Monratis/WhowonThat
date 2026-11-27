@@ -146,6 +146,20 @@ local function RegisterPanel()
     AddBool("rollWindow", L("window_opt"), L("window_opt_tip"), function()
         SummaryCall(ns.RollWindow.SetEnabled, ns.db.rollWindow)
     end)
+    -- how long a result stays before the window fades away (0 = never)
+    if Settings.CreateSlider and Settings.CreateSliderOptions then
+        local fadeSetting = Settings.RegisterAddOnSetting(category, "WWT_ROLLWINFADE", "rollWinFade", ns.db,
+            Settings.VarType.Number, L("rw_fade"), DEFAULTS.rollWinFade)
+        local options = Settings.CreateSliderOptions(0, 60, 5)
+        local mixin = _G.MinimalSliderWithSteppersMixin
+        if mixin and mixin.Label and options.SetLabelFormatter then
+            options:SetLabelFormatter(mixin.Label.Right, function(v)
+                return v <= 0 and L("rw_fade_never") or L("rw_fade_seconds", v)
+            end)
+        end
+        Settings.CreateSlider(category, fadeSetting, options, L("rw_fade_tip"))
+    end
+    AddBool("chatLine", L("chat_line_opt"), L("chat_line_opt_tip"))
 
     -- ===== Group chat =====
     Header(L("hdr_group"))

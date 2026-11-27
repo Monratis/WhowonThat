@@ -2,7 +2,9 @@
 --  * board mode (no roll running): everyone in the group with the items they won and the roll that won them,
 --  * roll mode (an item is being rolled for): who chose Need / Greed / Pass, then the numbers land one after another
 --    like a slot machine (spinning digits, the best roll lands last), and the winner gets a crown, a flash and sparks.
--- It opens inside dungeons and raids and whenever a roll starts; outside it fades away after the result.
+-- It opens inside dungeons and raids and whenever a roll starts; outside it fades away after the result (after the
+-- time set in the options, or never). Each result also gets one short line in your own chat; clicking its item
+-- replays the roll in the window.
 -- Game logic (reveals, the winner, switching drops) runs on timers; OnUpdate only animates what is on screen.
 local _, ns = ...
 
@@ -37,9 +39,11 @@ local PHOTO_FINISH = 3      -- a win by this many points or less is called a pho
 local REVEAL_GAP = 0.6      -- seconds between two numbers landing (weakest first, the best one last)
 local FAST_GAP = 0.25       -- the same while more drops are waiting
 local CELEBRATE_DELAY = 0.4
-local HOLD, HOLD_BUSY = 5, 2.5 -- seconds the result stays before the next drop / the board
+local HOLD_BUSY = 2.5      -- seconds a result stays while more drops are waiting (otherwise the fade setting)
+local HOLD_NO_FADE = 10     -- with fading turned off: seconds the result stays before the board takes over
 local STALE_DROP = 300      -- a roll that never finishes is given up after this many seconds
 local MAX_QUEUE, MAX_ROLLERS, MAX_RESULTS, MAX_KNOWN = 12, 40, 120, 300
+local MAX_HISTORY = 50      -- finished drops kept so a click on their chat line can replay them
 local CHAT_GAP_ABOVE, CHAT_GAP_BELOW = 36, -40 -- clear of the chat tabs above and the edit box below
 
 local KIND_RGB = { need = { 1, 0.62, 0.30 }, greed = { 0.44, 0.72, 1 }, pass = { 0.6, 0.6, 0.6 } }
@@ -69,13 +73,23 @@ local mode              -- "roll" or "board"
 local userClosed        -- run the player closed the window for: the board stays away until the next run
 local pinned = false    -- opened with /wwt window: the board stays even outside an instance
 local animating = false
-local chatSeq, demoSeq = 0, 0
+local chatSeq, demoSeq, replaySeq = 0, 0, 0
+local history = {}      -- finished drops the chat lines point to, oldest first
 local fonts = {}        -- { fontString, size, outline } so a later UI skin can re-font everything
 
 local Advance, Idle, RenderRoll, RenderBoard, Retire, StartAnimating
 
 local function Enabled()
     return ns.db ~= nil and ns.db.rollWindow ~= false
+end
+
+-- Seconds a result stays on screen; 0 means the window never fades away on its own.
+local function FadeAfter()
+    local s = ns.db and ns.db.rollWinFade
+    if type(s) ~= "number" then
+        return ns.DEFAULTS.rollWinFade
+    end
+    return math.max(0, s)
 end
 
 local function RunKey()
@@ -297,6 +311,9 @@ local function MakeRollRow()
     row.fill:SetWidth(1)
     row.glow = row:CreateTexture(nil, "BORDER", nil, 1)
     row.glow:SetAllPoints()
+    row.fx = row:CreateTexture(nil, "BORDER", nil, 2) -- the class effect that plays over a bar when it lands
+    row.fx:SetBlendMode("ADD")
+    row.fx:Hide()
     row.edge = row:CreateTexture(nil, "ARTWORK")
     row.edge:SetWidth(2)
     row.edge:SetPoint("TOPLEFT")
@@ -958,6 +975,124 @@ local function FillWidth(roll)
     return math.max(1, INNER * math.min(roll, 100) / 100)
 end
 
+-- A bar in a deep shade of the player's class color: the name on top is drawn in the full class color, so it
+-- always stands out against its own bar. The winner's bar is a little brighter.
+local function BarColor(p)
+    local c = ClassColor(p.class)
+    if c and type(c.r) == "number" then
+        return c.r, c.g, c.b
+    end
+    local k = KIND_RGB[p.st.kind]
+    return k[1], k[2], k[3]
+end
+
+local function PaintFill(row, p, width, winner)
+    local r, g, b = BarColor(p)
+    local s = winner and 0.6 or 0.42
+    Gradient(row.fill, "HORIZONTAL", r * s, g * s, b * s, 0.95, r * s * 0.55, g * s * 0.55, b * s * 0.55, 0.8)
+    row.fill:SetWidth(math.max(1, width))
+    row.fill:Show()
+end
+
+local function PlaceRow(row)
+    row:ClearAllPoints()
+    row:SetPoint("TOPLEFT", win.rollPane, "TOPLEFT", PAD + (row.dx or 0), -row.y)
+end
+
+-- ===== class effects: each of WoW Forever's classes lands its bar in its own way =====
+local FX_TIME = 0.9
+
+-- a soft band of light over part of a bar, x and width in pixels from the bar's left end
+local function Band(row, x, width, r, g, b, a, hard)
+    x = math.max(0, x)
+    width = math.max(1, width)
+    row.fx:ClearAllPoints()
+    row.fx:SetPoint("TOPLEFT", row, "TOPLEFT", x, 0)
+    row.fx:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", x, 0)
+    row.fx:SetWidth(width)
+    if hard then
+        row.fx:SetColorTexture(r, g, b, a)
+    else
+        Gradient(row.fx, "HORIZONTAL", r, g, b, 0, r, g, b, a)
+    end
+    row.fx:Show()
+end
+
+-- Each effect gets the progress t (0 to 1), the bar's full width w and the class color, draws its light and
+-- returns the bar width for this frame (some classes bend the bar itself).
+local FX = {}
+function FX.WARRIOR(row, t, w, r, g, b) -- slam: the bar overshoots, the row shakes, a hard flash
+    row.dx = math.sin(t * 40) * 3 * (1 - t) ^ 2
+    Band(row, 0, w, r, g, b, 0.5 * (1 - t) ^ 3, true)
+    return w * (1 + 0.1 * math.sin(t * math.pi * 3) * (1 - t))
+end
+function FX.ROGUE(row, t, w, r, g, b) -- two quick dashes run along the bar
+    local phase = (t * 2) % 1
+    Band(row, phase * w - 34, 34, math.min(1, r + 0.4), math.min(1, g + 0.4), math.min(1, b + 0.4), 0.8 * (1 - t))
+    return w
+end
+function FX.HUNTER(row, t, w, r, g, b) -- an arrow flies to the end of the bar and hits
+    if t < 0.55 then
+        Band(row, w * t / 0.55 - 44, 44, 1, 1, 0.85, 0.85)
+    else
+        Band(row, w - 16, 16, r, g, b, 0.9 * (1 - (t - 0.55) / 0.45), true)
+    end
+    return w
+end
+function FX.MAGE(row, t, w) -- a frosty shimmer drifts across
+    Band(row, t * (w + 60) - 60, 60, 0.65, 0.9, 1, 0.6 * math.sin(math.pi * t))
+    return w
+end
+function FX.PRIEST(row, t, w) -- the whole bar glows with holy light
+    Band(row, 0, w, 1, 0.97, 0.85, 0.45 * math.sin(math.pi * t), true)
+    return w
+end
+function FX.PALADIN(row, t, w) -- golden radiance spreads from the left
+    Band(row, 0, w * math.min(1, t * 1.6), 1, 0.82, 0.35, 0.55 * (1 - t))
+    return w
+end
+function FX.DRUID(row, t, w, r, g, b) -- the bar grows like a plant, with a little sway
+    Band(row, 0, w, r * 0.6, g, b * 0.6, 0.3 * (1 - t), true)
+    return w * (1 + 0.14 * math.sin(t * 13) * (1 - t))
+end
+function FX.SHAMAN(row, t, w) -- lightning strobes over the bar
+    if math.floor(t * 14) % 3 == 0 then
+        Band(row, 0, w, 0.55, 0.75, 1, 0.65 * (1 - t), true)
+    else
+        row.fx:Hide()
+    end
+    return w
+end
+function FX.WARLOCK(row, t, w) -- fel fire flickers
+    Band(row, 0, w, 0.45, 1, 0.3, math.random() * 0.45 * (1 - t), true)
+    return w
+end
+local function DefaultFX(row, t, w, r, g, b) -- an unknown class: a sweep in its own color
+    Band(row, t * (w + 50) - 50, 50, r, g, b, 0.7 * math.sin(math.pi * t))
+    return w
+end
+
+-- One frame of a landed bar's effect; false once it is over (the bar is then left as PaintRollRow drew it).
+local function ClassFX(row, p, now, winner)
+    local t = (now - row.fxStart) / FX_TIME
+    local w = FillWidth(p.roll)
+    if t >= 1 then
+        row.fxStart = nil
+        row.fx:Hide()
+        row.dx = 0
+        PlaceRow(row)
+        PaintFill(row, p, w, winner)
+        return false
+    end
+    local r, g, b = BarColor(p)
+    local fx = (type(p.class) == "string" and FX[p.class]) or DefaultFX
+    PaintFill(row, p, fx(row, t, w, r, g, b), winner)
+    if row.dx and row.dx ~= 0 then
+        PlaceRow(row)
+    end
+    return true
+end
+
 local function Me(d)
     for _, p in ipairs(d.list) do
         if p.isSelf then
@@ -1036,11 +1171,6 @@ local function StatusText(d)
     return "|cffffffff" .. L("rw_rolling") .. "|r " .. MyPosition(d)
 end
 
-local function PlaceRow(row)
-    row:ClearAllPoints()
-    row:SetPoint("TOPLEFT", win.rollPane, "TOPLEFT", PAD, -row.y)
-end
-
 local function PaintRollRow(row, p, d, leader, index)
     local st = p.st
     local passed = st and (st.kind == "pass" or p.out) -- a pass, or a Greed that cannot win against a Need
@@ -1087,6 +1217,9 @@ local function PaintRollRow(row, p, d, leader, index)
         row.tag:SetTextColor(tagColor[1], tagColor[2], tagColor[3])
     end
     row.fill:Hide()
+    if not row.fxStart then
+        row.fx:Hide()
+    end
     if passed then
         row.num:SetText(p.out and "-" or "")
         row.num:SetTextColor(0.55, 0.55, 0.55)
@@ -1099,14 +1232,9 @@ local function PaintRollRow(row, p, d, leader, index)
         else
             row.num:SetTextColor(1, 1, 1)
         end
-        local c = KIND_RGB[st.kind]
-        if isWinner then
-            row.fill:SetColorTexture(ar, ag, ab, 0.32)
-        else
-            row.fill:SetColorTexture(c[1], c[2], c[3], 0.2)
+        if not row.fxStart then
+            PaintFill(row, p, FillWidth(p.roll), isWinner)
         end
-        row.fill:SetWidth(FillWidth(p.roll))
-        row.fill:Show()
     elseif p.revealAt then
         row.num:SetText("?") -- the spin itself is drawn by the OnUpdate animation
         row.num:SetTextColor(0.85, 0.85, 0.85)
@@ -1162,7 +1290,7 @@ function RenderRoll()
         local row = p.row
         if not row then
             row = Take(rollRows)
-            row.shownSt, row.y = nil, nil
+            row.shownSt, row.y, row.fxStart, row.dx = nil, nil, nil, 0
             p.row = row
         end
         row.ty = ROLL_HEAD + (i - 1) * ROW_H
@@ -1455,11 +1583,10 @@ local function Tick(self, elapsed)
                             local ar, ag, ab = Theme.Accent()
                             row.bg:SetColorTexture(ar, ag, ab, 0.06 + 0.12 * math.abs(math.sin(now * 5)))
                         end
-                        local c = KIND_RGB[p.st.kind]
-                        row.fill:SetColorTexture(c[1], c[2], c[3], 0.2)
-                        row.fill:SetWidth(math.max(1, FillWidth(p.roll) * (1 - (1 - prog) ^ 3)))
-                        row.fill:Show()
+                        PaintFill(row, p, FillWidth(p.roll) * (1 - (1 - prog) ^ 3))
                     end
+                elseif p.shown and row.fxStart then
+                    busy = ClassFX(row, p, now, d.celebrated and d.winner == p) or busy
                 elseif not p.st and not d.done then
                     busy = true
                     row.num:SetText(DOTS[math.floor(now * 3) % 3 + 1])
@@ -1504,11 +1631,40 @@ local function Sparkle(row)
     end
 end
 
+local function ItemLinkBody(link)
+    return type(link) == "string" and link:match("|H(item:[^|]+)|h") or nil
+end
+
+-- One short line in your own chat: the item, who won it and with which roll. Written once the winner is shown in
+-- the window, so the chat never gives the result away before the numbers land.
+local function ChatLine(d)
+    if d.replay or not (ns.db and ns.db.chatLine ~= false) or not DEFAULT_CHAT_FRAME then
+        return
+    end
+    local w = d.winner
+    local text
+    if d.allPassed or not w then
+        text = L("chat_passed", d.item)
+    else
+        text = w.isSelf and L("chat_you_won", d.item) or L("chat_won", d.item, ClassText(w.short, w.class))
+        if w.st and w.roll then
+            local kind = w.st.kind == "greed" and L("chat_greed") or (w.st.tag and L("chat_need_os") or L("chat_need"))
+            text = text .. " " .. MUTED .. "(" .. kind .. " " .. w.roll .. ")|r"
+        end
+    end
+    ns.Emit(DEFAULT_CHAT_FRAME, "|cff58c6faWWT|r " .. text, "SYSTEM")
+    if #history >= MAX_HISTORY then
+        table.remove(history, 1)
+    end
+    history[#history + 1] = d
+end
+
 local function Celebrate(d)
     if d.retired then
         return
     end
     d.celebrated = true
+    ChatLine(d)
     local w = d.winner
     if w and not d.allPassed and Rolls(w) then
         for _, p in ipairs(d.list) do
@@ -1538,7 +1694,11 @@ local function Celebrate(d)
             Sound(p.isSelf and "UI_EPICLOOT_TOAST" or "LOOT_WINDOW_COIN_SOUND")
         end
     end
-    local hold = #queue > 1 and HOLD_BUSY or HOLD
+    local fade = FadeAfter()
+    local hold = fade > 0 and fade or HOLD_NO_FADE
+    if #queue > 1 then
+        hold = math.min(hold, HOLD_BUSY)
+    end
     if d.epic then
         hold = hold + EPIC_HOLD
     end
@@ -1560,6 +1720,10 @@ local function Settle(d, p)
         RenderRoll()
         if p.row then
             Play(p.row.numPop)
+            if Rolls(p) then
+                p.row.fxStart = GetTime()
+                StartAnimating()
+            end
             if newLeader then
                 FlashRow(p.row, 1, 1, 1) -- overtaken: the new leader lights up
             end
@@ -1662,7 +1826,8 @@ function Idle()
             return
         end
     end
-    if win.placing or ShouldShowBoard() then
+    -- with fading turned off the window stays where it is once a roll opened it (the X still closes it)
+    if win.placing or ShouldShowBoard() or (FadeAfter() == 0 and win:IsShown()) then
         SetMode("board")
         RenderBoard()
         ShowWindow()
@@ -1825,6 +1990,58 @@ local function Update(key, info, finished, demo)
     else
         Advance()
     end
+end
+
+-- Plays a finished drop again from the start (a click on its chat line): a copy, so the board and the luck
+-- numbers do not count it twice.
+local function Replay(old)
+    if old.replaying and not old.replaying.retired then
+        return -- already on screen or waiting
+    end
+    replaySeq = replaySeq + 1
+    local d = NewDrop("replay:" .. replaySeq, old.item, true)
+    d.replay = true
+    for _, o in ipairs(old.list) do
+        local p = { full = o.full, short = o.short, order = o.order, class = o.class, isSelf = o.isSelf,
+            st = o.st, roll = o.roll, out = o.out }
+        d.players[p.short] = p
+        d.list[#d.list + 1] = p
+        if o == old.winner then
+            d.winner = p
+        end
+    end
+    d.done, d.allPassed = true, old.allPassed
+    old.replaying = d
+    if current then
+        RenderRoll() -- the "+N" counter; it comes after the roll on screen
+    else
+        Advance()
+    end
+end
+
+-- A plain click on an item link anywhere in chat: if one of our result lines named that item, its roll is played
+-- again. The game still opens its item tooltip as usual (a hook, not a replacement).
+local function OnItemRef(link, _, button)
+    if type(link) ~= "string" or not link:find("^item:") or (button and button ~= "LeftButton") then
+        return
+    end
+    if (IsShiftKeyDown and IsShiftKeyDown()) or (IsControlKeyDown and IsControlKeyDown())
+        or (IsAltKeyDown and IsAltKeyDown()) then
+        return -- linking, the dressing room and the like
+    end
+    if not Enabled() or not EnsureWindow() then
+        return
+    end
+    for i = #history, 1, -1 do
+        if ItemLinkBody(history[i].item) == link then
+            Replay(history[i])
+            return
+        end
+    end
+end
+
+if hooksecurefunc and SetItemRef then
+    hooksecurefunc("SetItemRef", OnItemRef)
 end
 
 -- ===== events and commands =====

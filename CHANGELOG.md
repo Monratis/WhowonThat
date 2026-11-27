@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.10.3
+
+- Roll bars are in each player's class color, in a deep shade so the class-colored name on top stays easy to read.
+- Every class lands its number in its own way: the warrior slams the bar, the rogue dashes, the hunter fires an arrow, the mage leaves frost, the priest glows, the paladin radiates, the druid grows, the shaman strikes lightning, the warlock burns fel fire.
+- New option: how long a result stays before the roll window fades away, or never. The default is now 10 seconds (was 5).
+- Back in chat, but short and only for you: one line per result with the item, the winner and the roll. Click the item to see its tooltip and replay the roll in the window. Can be turned off.
+
 ## 4.10.2
 
 - Epic items no longer flash a white box behind the item while the group is choosing; the purple glow breathes from the start.

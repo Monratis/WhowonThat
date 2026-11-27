@@ -11,7 +11,8 @@ Made for **WoW Forever** (Midnight engine, Interface `16001`). No other addon ne
 ## Features
 
 - **Live roll window** - every roll plays out in a small window: Need / Greed / Pass choices, the numbers spinning in like a slot machine (the best one lands last) and the winner with a crown and sparks. Between rolls it lists your group with what everyone won. Opens in dungeons, raids and whenever a roll starts; matches EllesmereUI, ElvUI, TukUI or the Blizzard look. Starts above the chat - drag it anywhere, drag the corner to resize, Ctrl + mouse wheel to scale.
-- **A quiet chat** - the game's roll lines (who picked Need / Greed / Pass, rolled, won) are hidden in every chat tab while the roll window is on; other loot messages stay.
+- **A quiet chat** - the game's roll lines (who picked Need / Greed / Pass, rolled, won) are hidden in every chat tab while the roll window is on; other loot messages stay. Instead you get one short line per result, only for you: the item, who won it and the roll. Click the item to see its tooltip and replay the roll in the window.
+- **Your timing** - choose how long a result stays before the window fades (10 seconds by default), or turn fading off so it stays until you close it.
 - **Class-colored names** (your custom palette if you use one) and a ninja icon on ninja loot: a Need roll on an item that is not for that class (armor it can't wear, wrong main stat).
 - **Your language** - settings, windows and messages follow the game's language (English, German, French, Spanish, Italian, Portuguese, Russian, Korean, Chinese) or the language you pick in the settings. Messages to the group are always in English.
 - **Optional group announcement** (off by default) - all results to party/raid, next to the roll window; everyone's rolls, winner + Need/Greed, or winner only; skips items another player already posted.
