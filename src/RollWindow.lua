@@ -61,7 +61,7 @@ local UNLUCKY_ICON = "Interface\\TargetingFrame\\UI-RaidTargetingIcon_8" -- skul
 -- ===== state =====
 local known = {}        -- [dropKey] = drop table, or false for an item that is not shown (ignored / cheap)
 local knownCount = 0
-local queue = {}        -- drops waiting to be shown, oldest first; queue[1] is the one on screen
+local queue = {}        -- drops waiting to be shown, in the order the game asked for the rolls
 local current           -- the drop on screen in roll mode
 local results = {}      -- finished wins for the board: { item, full, short, class, isSelf, kind, tag, roll }
 local luck = {}         -- [short name] = { n = rolls, sum = total, best = highest } over the run
@@ -79,6 +79,7 @@ local fonts = {}        -- { fontString, size, outline } so a later UI skin can 
 local Advance, Idle, RenderRoll, RenderBoard, Retire, StartAnimating
 local Rarity = {} -- rarity effects of the drop on screen (src/RollFX.lua decides which ones an item gets)
 local Early = {}  -- a roll shown from its very start: the window opens at START_LOOT_ROLL, reels spin at once
+local Follow = {} -- several rolls at once: the window shows the drops the game has already decided first
 
 local function Enabled()
     return ns.db ~= nil and ns.db.rollWindow ~= false
@@ -1878,6 +1879,79 @@ local function Celebrate(d)
     end)
 end
 
+-- Nobody is left to choose: everyone picked, and every Need / Greed that still counts has its number.
+function Follow.AllIn(d)
+    if d.done then
+        return true
+    end
+    for _, p in ipairs(d.list) do
+        if not p.st or (p.st.kind ~= "pass" and not p.out and not p.roll) then
+            return false
+        end
+    end
+    return #d.list > 0
+end
+
+local function Spinning(d)
+    for _, p in ipairs(d.list) do
+        if p.revealAt and not p.shown then
+            return true
+        end
+    end
+    return false
+end
+
+-- The drop to show: the first one (in the order the game asked) the game has decided, so a drop someone is still
+-- choosing on does not hold up the ones already decided behind it. Otherwise simply the first. (Decided, not "all
+-- chose": the loot history may list only the players who have chosen so far.)
+function Follow.Next()
+    for _, d in ipairs(queue) do
+        if d.done then
+            return d
+        end
+    end
+    return queue[1]
+end
+
+-- Takes the drop off the screen; it stays in the queue (or not, when retired) and is drawn afresh when it returns.
+function Follow.Leave(d)
+    current = nil
+    Rarity.ClearEffects(d)
+    Release(rollRows)
+    for _, p in ipairs(d.list) do
+        p.row = nil
+    end
+end
+
+-- The drop on screen still waits for someone while a later one is decided: show that one now, come back later.
+-- Never in the middle of a spinning number.
+function Follow.Switch()
+    local d = current
+    if not d or d.done or Spinning(d) then
+        return false
+    end
+    local nextDrop = Follow.Next()
+    if nextDrop == d or not nextDrop.done then
+        return false
+    end
+    Follow.Leave(d)
+    Advance()
+    return true
+end
+
+-- Loot history updates come in batches (one per drop): the switch is decided once the whole batch is merged, so
+-- a drop handled early in the batch is not shown before an earlier decided one handled later.
+function Follow.Later()
+    if Follow.pending then
+        return
+    end
+    Follow.pending = true
+    After(0, function()
+        Follow.pending = false
+        Follow.Switch()
+    end)
+end
+
 local function Settle(d, p)
     if d.retired then
         return
@@ -1908,6 +1982,7 @@ local function Settle(d, p)
         if #d.list <= 10 then
             Sound("IG_MAINMENU_OPTION_CHECKBOX_ON")
         end
+        Follow.Switch()
     end
 end
 
@@ -1927,15 +2002,7 @@ local function ScheduleReveals(d)
     local now = GetTime()
     local t = math.max(now, d.nextReveal or 0)
     -- when nobody is left to choose, the last number of this batch decides the roll: it gets the long spin
-    local allIn = d.done
-    if not allIn then
-        allIn = true
-        for _, p in ipairs(d.list) do
-            if not p.st or (p.st.kind ~= "pass" and not p.out and not p.roll) then
-                allIn = false
-            end
-        end
-    end
+    local allIn = Follow.AllIn(d)
     for i, p in ipairs(fresh) do
         p.revealAt = t
         p.suspense = allIn and i == #fresh and #fresh > 1 and #queue <= 2
@@ -1973,12 +2040,7 @@ function Retire(d)
         end
     end
     if current == d then
-        current = nil
-        Rarity.ClearEffects(d)
-        Release(rollRows)
-        for _, p in ipairs(d.list) do
-            p.row = nil
-        end
+        Follow.Leave(d)
         Advance()
     elseif current then
         RenderRoll() -- the "+N" counter
@@ -2012,7 +2074,7 @@ function Idle()
 end
 
 function Advance()
-    local d = queue[1]
+    local d = Follow.Next()
     if not d then
         Idle()
         return
@@ -2026,11 +2088,14 @@ function Advance()
     if not d.dismissed then
         ShowWindow()
     end
-    After(STALE_DROP, function()
-        if not d.done then
-            Retire(d) -- the loot history never reported a result for it
-        end
-    end)
+    if not d.staleCheck then
+        d.staleCheck = true
+        After(STALE_DROP, function()
+            if not d.done then
+                Retire(d) -- the loot history never reported a result for it
+            end
+        end)
+    end
 end
 
 local function AddResult(d)
@@ -2202,7 +2267,8 @@ local function Update(key, info, finished, demo)
     if current == d then
         Present(d)
     elseif current then
-        RenderRoll()
+        RenderRoll() -- the "+N" counter
+        Follow.Later()
     else
         Advance()
     end

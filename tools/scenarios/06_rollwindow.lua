@@ -353,4 +353,35 @@ return {
         w:advance(1)
         t.ok(not shown(me), "the X closes it")
     end },
+
+    { "several rolls at once: game order, but a decided drop does not wait behind an undecided one", function(w, t)
+        local me = group(w, nil, true)
+        local helm, boots, ring = item(51, "Lion Helm", "a335ee"), item(52, "Iron Boots", "0070dd"),
+            item(53, "Jade Ring", "1eff00")
+        -- the drop on screen: the item name heading the roll pane of the window
+        local function onScreen()
+            return World.screen(me):match("%[Frame%] ([%a ]+) |  | ") or ""
+        end
+        w:encounter(1, "Glubtok")
+        me.startRoll(1, helm, 60)
+        me.startRoll(2, boots, 60)
+        me.startRoll(3, ring, 60)
+        w:advance(0.3)
+        t.eq(onScreen(), "Lion Helm", "the first roll the game asked comes first")
+        -- the loot history reports the drops in another order than the game asked
+        local r, b, h = w:drop(1, ring), w:drop(1, boots), w:drop(1, helm)
+        h:roll("Brakk", "need", 70):roll("Monra", "need", 20)
+        b:roll("Brakk", "need", 40):roll("Monra", "need", 90):roll("Seluna", "pass"):finish("Monra")
+        r:roll("Brakk", "greed", 30):roll("Monra", "pass"):roll("Seluna", "need", 11):finish("Seluna")
+        w:advance(2) -- the helm's numbers that came in land first
+        t.eq(onScreen(), "Iron Boots", "Seluna still chooses on the helm: the decided boots come now")
+        w:advance(5)
+        t.eq(onScreen(), "Jade Ring", "then the ring, in the game's order")
+        w:advance(4)
+        t.eq(onScreen(), "Lion Helm", "back to the helm, still waiting for Seluna")
+        h:roll("Seluna", "pass"):finish("Brakk")
+        w:advance(4)
+        t.has(World.screen(me), "Brakk wins!")
+        t.eq(#me.errors, 0)
+    end },
 }

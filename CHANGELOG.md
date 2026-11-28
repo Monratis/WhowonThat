@@ -1,5 +1,9 @@
 # Changelog
 
+## 4.11.10
+
+- Fixed: with several items rolled at once, the roll window no longer waits on one item someone is still choosing on. Items come in the order the game asked for them, but those the group has already decided are shown right away, and the window comes back to the undecided one afterwards.
+
 ## 4.11.9
 
 - Fixed: a win played two sounds (the game's toast and the addon's). While the addon's loot toast is on, the game's "you won" toast stays away entirely; items the roll window does not show get the addon's toast and the win sound right away.
